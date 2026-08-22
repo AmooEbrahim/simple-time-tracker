@@ -1,40 +1,85 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { VueDatePicker } from '@vuepic/vue-datepicker';
-import '@vuepic/vue-datepicker/dist/main.css';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import {
+    Play,
+    Square,
+    Plus,
+    X,
+    Pencil,
+    Trash2,
+    RotateCcw,
+    Tag as TagIcon,
+    Folder,
+    Hourglass,
+    CalendarDays,
+    Clock,
+    Sparkles,
+} from 'lucide-vue-next';
+import ProjectSelect from '@/Components/ProjectSelect.vue';
+
+const pad = (n) => String(n).padStart(2, '0');
+
+const toDateInput = (d) => {
+    if (!d) return '';
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return '';
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+};
+
+const toTimeInput = (d) => {
+    if (!d) return '';
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return '';
+    return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+};
+
+const combineDateTime = (date, time) => {
+    if (!date) return null;
+    const t = time && time.length >= 4 ? time : '00:00';
+    const dt = new Date(`${date}T${t}:00`);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toISOString();
+};
+
+const nowDateInput = () => toDateInput(new Date());
+const nowTimeInput = () => toTimeInput(new Date());
 
 const props = defineProps({
     groupedDays: Array,
     hasMore: Boolean,
     nextCursor: String,
     totalSeconds: Number,
+    todayTotalSeconds: Number,
+    weekTotalSeconds: Number,
     projects: Array,
     tags: Array,
 });
 
 const runningTimer = computed(() => {
     for (const day of props.groupedDays) {
-        const timer = day.entries.find(e => !e.ended_at);
-        if (timer) return timer;
+        const t = day.entries.find((e) => !e.ended_at);
+        if (t) return t;
     }
     return null;
 });
 
-const timerDisplay = ref('00:00:00');
+const liveElapsed = ref(0);
 let timerInterval = null;
 
-const formatDuration = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+const formatHMS = (seconds) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 };
 
-const formatDurationShort = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
+const formatHM = (seconds) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
 };
@@ -44,19 +89,53 @@ const formatTime = (dateStr) => {
     return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 
-onMounted(() => {
-    if (runningTimer.value) {
-        const startedAt = new Date(runningTimer.value.started_at).getTime();
-        timerInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-            timerDisplay.value = formatDuration(elapsed);
-        }, 1000);
+const startTimerInterval = () => {
+    if (timerInterval) clearInterval(timerInterval);
+    if (!runningTimer.value) {
+        liveElapsed.value = 0;
+        return;
     }
+    const startedAt = new Date(runningTimer.value.started_at).getTime();
+    const tick = () => {
+        liveElapsed.value = Math.floor((Date.now() - startedAt) / 1000);
+    };
+    tick();
+    timerInterval = setInterval(tick, 1000);
+};
+
+onMounted(() => {
+    startTimerInterval();
+    initTimerForm();
 });
 
 onUnmounted(() => {
     if (timerInterval) clearInterval(timerInterval);
 });
+
+watch(runningTimer, (newTimer, oldTimer) => {
+    const wasRunning = !!oldTimer;
+    const isRunning = !!newTimer;
+
+    if (!wasRunning && isRunning) {
+        startTimerInterval();
+        initTimerForm();
+    } else if (wasRunning && !isRunning) {
+        startTimerInterval();
+        initTimerForm();
+    } else if (newTimer && oldTimer && newTimer.id !== oldTimer.id) {
+        startTimerInterval();
+        initTimerForm();
+    }
+});
+
+const liveTimerDisplay = computed(() => formatHMS(liveElapsed.value));
+
+const todayDisplay = computed(() =>
+    formatHM((props.todayTotalSeconds || 0) + (runningTimer.value ? liveElapsed.value : 0))
+);
+const weekDisplay = computed(() =>
+    formatHM((props.weekTotalSeconds || 0) + (runningTimer.value ? liveElapsed.value : 0))
+);
 
 const timerForm = useForm({
     description: '',
@@ -69,8 +148,26 @@ const timerTagInput = ref('');
 const showTagInput = ref(false);
 const timerTagInputRef = ref(null);
 
+const initTimerForm = () => {
+    if (runningTimer.value) {
+        timerForm.description = runningTimer.value.description || '';
+        timerForm.project_id = runningTimer.value.project_id;
+        timerTags.value = (runningTimer.value.tags || []).map((t) => t.name);
+    } else {
+        timerForm.description = '';
+        timerForm.project_id = null;
+        timerTags.value = [];
+    }
+};
+
 const onTagInputBlur = () => {
     if (!timerTagInput.value) showTagInput.value = false;
+};
+
+const focusTagInput = async () => {
+    showTagInput.value = true;
+    await nextTick();
+    timerTagInputRef.value?.focus();
 };
 
 const addTimerTag = () => {
@@ -83,40 +180,56 @@ const addTimerTag = () => {
 };
 
 const removeTimerTag = (tag) => {
-    timerTags.value = timerTags.value.filter(t => t !== tag);
+    timerTags.value = timerTags.value.filter((t) => t !== tag);
 };
 
 const startTimer = () => {
+    if (runningTimer.value) return;
     timerForm.tag_names = timerTags.value;
     timerForm.post(route('time-entries.store'), {
         preserveScroll: true,
         onSuccess: () => {
-            timerForm.reset();
-            timerTags.value = [];
             timerTagInput.value = '';
-            location.reload();
+            router.reload({ only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds', 'todayTotalSeconds', 'weekTotalSeconds'] });
         },
     });
 };
 
 const stopTimer = (entry) => {
-    router.post(route('time-entries.stop', entry.id), {}, {
-        preserveScroll: true,
-        onSuccess: () => location.reload(),
-    });
+    const target = entry || runningTimer.value;
+    if (!target) return;
+    router.post(
+        route('time-entries.stop', target.id),
+        {
+            description: timerForm.description,
+            project_id: timerForm.project_id,
+            tag_names: timerTags.value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds', 'todayTotalSeconds', 'weekTotalSeconds'] });
+            },
+        }
+    );
 };
 
 const restartTimer = (entry) => {
-    router.post(route('time-entries.restart', entry.id), {}, {
-        preserveScroll: true,
-        onSuccess: () => location.reload(),
-    });
+    router.post(
+        route('time-entries.restart', entry.id),
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => router.reload({ only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds', 'todayTotalSeconds', 'weekTotalSeconds'] }),
+        }
+    );
 };
 
 const deleteEntry = (entry) => {
-    if (confirm('Are you sure you want to delete this time entry?')) {
+    if (confirm('Delete this time entry?')) {
         router.delete(route('time-entries.destroy', entry.id), {
             preserveScroll: true,
+            onSuccess: () => router.reload({ only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds', 'todayTotalSeconds', 'weekTotalSeconds'] }),
         });
     }
 };
@@ -130,6 +243,27 @@ const manualForm = useForm({
     tag_names: [],
 });
 
+const manualStartDate = ref('');
+const manualStartTime = ref('');
+const manualEndDate = ref('');
+const manualEndTime = ref('');
+
+const manualDuration = computed(() => {
+    const s = combineDateTime(manualStartDate.value, manualStartTime.value);
+    const e = combineDateTime(manualEndDate.value, manualEndTime.value);
+    if (!s || !e) return null;
+    const diff = (new Date(e.replace(' ', 'T')) - new Date(s.replace(' ', 'T'))) / 1000;
+    if (Number.isNaN(diff) || diff <= 0) return null;
+    return formatHM(diff);
+});
+
+watch(showManualEntry, (open) => {
+    if (open && !manualStartDate.value) {
+        manualStartDate.value = nowDateInput();
+        manualEndDate.value = nowDateInput();
+    }
+});
+
 const manualTags = ref([]);
 const manualTagInput = ref('');
 const showManualTagInput = ref(false);
@@ -137,6 +271,12 @@ const manualTagInputRef = ref(null);
 
 const onManualTagInputBlur = () => {
     if (!manualTagInput.value) showManualTagInput.value = false;
+};
+
+const focusManualTagInput = async () => {
+    showManualTagInput.value = true;
+    await nextTick();
+    manualTagInputRef.value?.focus();
 };
 
 const addManualTag = () => {
@@ -149,10 +289,12 @@ const addManualTag = () => {
 };
 
 const removeManualTag = (tag) => {
-    manualTags.value = manualTags.value.filter(t => t !== tag);
+    manualTags.value = manualTags.value.filter((t) => t !== tag);
 };
 
 const submitManualEntry = () => {
+    manualForm.started_at = combineDateTime(manualStartDate.value, manualStartTime.value);
+    manualForm.ended_at = combineDateTime(manualEndDate.value, manualEndTime.value);
     manualForm.tag_names = manualTags.value;
     manualForm.post(route('time-entries.store'), {
         preserveScroll: true,
@@ -160,6 +302,11 @@ const submitManualEntry = () => {
             showManualEntry.value = false;
             manualForm.reset();
             manualTags.value = [];
+            manualStartDate.value = '';
+            manualStartTime.value = '';
+            manualEndDate.value = '';
+            manualEndTime.value = '';
+            router.reload({ only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds', 'todayTotalSeconds', 'weekTotalSeconds'] });
         },
     });
 };
@@ -173,6 +320,20 @@ const editForm = useForm({
     tag_names: [],
 });
 
+const editStartDate = ref('');
+const editStartTime = ref('');
+const editEndDate = ref('');
+const editEndTime = ref('');
+
+const editDuration = computed(() => {
+    const s = combineDateTime(editStartDate.value, editStartTime.value);
+    const e = combineDateTime(editEndDate.value, editEndTime.value);
+    if (!s || !e) return null;
+    const diff = (new Date(e.replace(' ', 'T')) - new Date(s.replace(' ', 'T'))) / 1000;
+    if (Number.isNaN(diff) || diff <= 0) return null;
+    return formatHM(diff);
+});
+
 const editTags = ref([]);
 const editTagInput = ref('');
 const showEditTagInput = ref(false);
@@ -182,13 +343,21 @@ const onEditTagInputBlur = () => {
     if (!editTagInput.value) showEditTagInput.value = false;
 };
 
+const focusEditTagInput = async () => {
+    showEditTagInput.value = true;
+    await nextTick();
+    editTagInputRef.value?.focus();
+};
+
 const openEdit = (entry) => {
     editEntry.value = entry;
     editForm.description = entry.description || '';
     editForm.project_id = entry.project_id;
-    editForm.started_at = entry.started_at ? new Date(entry.started_at) : null;
-    editForm.ended_at = entry.ended_at ? new Date(entry.ended_at) : null;
-    editTags.value = (entry.tags || []).map(t => t.name);
+    editStartDate.value = toDateInput(entry.started_at);
+    editStartTime.value = toTimeInput(entry.started_at);
+    editEndDate.value = toDateInput(entry.ended_at);
+    editEndTime.value = toTimeInput(entry.ended_at);
+    editTags.value = (entry.tags || []).map((t) => t.name);
     editTagInput.value = '';
 };
 
@@ -202,164 +371,227 @@ const addEditTag = () => {
 };
 
 const removeEditTag = (tag) => {
-    editTags.value = editTags.value.filter(t => t !== tag);
+    editTags.value = editTags.value.filter((t) => t !== tag);
 };
 
 const submitEdit = () => {
+    editForm.started_at = combineDateTime(editStartDate.value, editStartTime.value);
+    editForm.ended_at = combineDateTime(editEndDate.value, editEndTime.value);
     editForm.tag_names = editTags.value;
     editForm.put(route('time-entries.update', editEntry.value.id), {
         preserveScroll: true,
         onSuccess: () => {
             editEntry.value = null;
+            router.reload({ only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds', 'todayTotalSeconds', 'weekTotalSeconds'] });
         },
     });
 };
 
 const loadMore = () => {
     if (!props.hasMore || !props.nextCursor) return;
-    router.get(route('dashboard'), { cursor: props.nextCursor }, {
-        preserveScroll: true,
-        preserveState: true,
-        only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds'],
+    router.get(
+        route('dashboard'),
+        { cursor: props.nextCursor },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['groupedDays', 'hasMore', 'nextCursor', 'totalSeconds'],
+        }
+    );
+};
+
+const getProjectColor = (project) => project?.color || '#94a3b8';
+const getProjectName = (project) => project?.name || 'No project';
+
+const projectById = computed(() => {
+    const map = new Map();
+    (props.projects || []).forEach((p) => {
+        map.set(p.id, p);
+        if (p.children) {
+            p.children.forEach((c) => map.set(c.id, c));
+        }
     });
-};
+    return map;
+});
 
-const getProjectColor = (project) => project?.color || '#6366f1';
-const getProjectName = (project) => project?.name || 'No Project';
-
-const getProjectGradient = (project) => {
-    const color = getProjectColor(project);
-    return `linear-gradient(180deg, ${color} 0%, ${color}00 100%)`;
-};
-
-// Date picker config
-const datePickerConfig = {
-    locale: 'en',
-    format: 'yyyy-MM-dd HH:mm',
-    enableTime: true,
-    time24hr: true,
-    position: 'left',
-};
+const selectedTimerProject = computed(() => projectById.value.get(timerForm.project_id) || null);
 </script>
 
 <template>
-    <Head title="Time Tracker" />
+    <Head title="Tempo · Time Tracker" />
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                    Time Tracker
-                </h2>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                        Time Tracker
+                    </h2>
+                    <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                        Track what you work on and where your hours go.
+                    </p>
+                </div>
                 <button
                     @click="showManualEntry = !showManualEntry"
-                    class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                    class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
-                    {{ showManualEntry ? 'Cancel' : '+ Manual entry' }}
+                    <Plus v-if="!showManualEntry" class="h-4 w-4" />
+                    <X v-else class="h-4 w-4" />
+                    {{ showManualEntry ? 'Cancel' : 'Manual entry' }}
                 </button>
             </div>
         </template>
 
-        <div class="py-6">
-            <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-                <!-- Timer Bar - Floating Card Style -->
-                <div class="mb-8 rounded-2xl bg-white dark:bg-gray-800 p-2 shadow-lg shadow-gray-200/50 dark:shadow-black/20">
-                    <div class="flex items-center gap-3 p-2">
-                        <!-- Project Selector - Pill Style -->
-                        <div class="relative shrink-0">
-                            <select
-                                v-model="timerForm.project_id"
-                                class="appearance-none rounded-xl border-0 bg-gray-100 dark:bg-gray-700 px-4 py-3 pr-10 text-sm font-medium text-gray-700 dark:text-gray-300 focus:bg-gray-200 dark:focus:bg-gray-600 focus:ring-0 transition-colors cursor-pointer"
-                            >
-                                <option :value="null">No Project</option>
-                                <option v-for="project in projects" :key="project.id" :value="project.id">
-                                    {{ project.name }}
-                                </option>
-                            </select>
-                            <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                </svg>
+        <div class="py-8">
+            <div class="mx-auto max-w-4xl space-y-6 px-4 sm:px-6 lg:px-8">
+                <!-- Stat Cards -->
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div class="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
+                                <Clock class="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Today</p>
+                                <p class="font-mono text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                    {{ todayDisplay }}
+                                </p>
                             </div>
                         </div>
+                    </div>
+                    <div class="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-500/15 dark:text-fuchsia-400">
+                                <CalendarDays class="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">This week (Sat–Fri)</p>
+                                <p class="font-mono text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                    {{ weekDisplay }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                                <Hourglass class="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    {{ runningTimer ? 'Running' : 'Idle' }}
+                                </p>
+                                <p class="font-mono text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                    {{ runningTimer ? liveTimerDisplay : '00:00:00' }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        <!-- Description Input -->
-                        <div class="flex-1 min-w-0">
+                <!-- Timer Card -->
+                <div
+                    class="relative rounded-2xl border bg-white shadow-lg transition-colors dark:bg-slate-900"
+                    :class="runningTimer
+                        ? 'border-indigo-300/60 shadow-indigo-200/40 dark:border-indigo-500/40 dark:shadow-indigo-500/10'
+                        : 'border-slate-200/70 dark:border-slate-800'"
+                >
+                    <div
+                        v-if="runningTimer"
+                        class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent"
+                    />
+                    <div
+                        v-if="runningTimer"
+                        class="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-gradient-to-br from-indigo-400/20 to-fuchsia-400/20 blur-3xl"
+                    />
+
+                    <div class="relative flex flex-wrap items-center gap-3 p-3 sm:flex-nowrap">
+                        <!-- Project pill -->
+                        <ProjectSelect
+                            v-model="timerForm.project_id"
+                            :projects="projects"
+                            placeholder="No project"
+                            class="w-48 shrink-0"
+                        />
+
+                        <!-- Description -->
+                        <div class="flex min-w-0 flex-1 items-center">
                             <input
                                 v-model="timerForm.description"
                                 type="text"
-                                placeholder="What are you working on?"
-                                class="w-full border-0 bg-transparent px-2 py-3 text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-0"
-                                @keyup.enter="startTimer"
+                                :placeholder="runningTimer ? 'Add what you\'re working on…' : 'What are you working on?'"
+                                class="w-full border-0 bg-transparent px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:ring-0 dark:text-white dark:placeholder:text-slate-500"
+                                @keyup.enter="runningTimer ? stopTimer() : startTimer()"
                             />
                         </div>
 
-                        <!-- Timer Display / Action -->
-                        <div class="flex items-center gap-3 shrink-0">
-                            <span v-if="runningTimer" class="font-mono text-xl font-semibold text-indigo-600 dark:text-indigo-400">
-                                {{ timerDisplay }}
-                            </span>
-                            
+                        <!-- Live timer + action -->
+                        <div class="flex shrink-0 items-center gap-3">
+                            <div v-if="runningTimer" class="flex items-center gap-2 font-mono text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                                <span class="relative flex h-2 w-2">
+                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
+                                    <span class="relative inline-flex h-2 w-2 rounded-full bg-indigo-500"></span>
+                                </span>
+                                {{ liveTimerDisplay }}
+                            </div>
+
                             <button
                                 v-if="!runningTimer"
                                 @click="startTimer"
-                                class="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all"
+                                :disabled="timerForm.processing"
+                                class="group flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30 transition hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/40 active:scale-95 disabled:opacity-50"
+                                title="Start timer"
                             >
-                                <svg class="h-5 w-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M8 5v14l11-7z" />
-                                </svg>
+                                <Play class="h-5 w-5 translate-x-0.5" :stroke-width="2.5" />
                             </button>
                             <button
                                 v-else
-                                @click="stopTimer(runningTimer)"
-                                class="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500 text-white shadow-lg shadow-red-200 dark:shadow-red-900/30 hover:bg-red-600 hover:scale-105 active:scale-95 transition-all"
+                                @click="stopTimer()"
+                                class="group flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-lg shadow-rose-500/30 transition hover:scale-105 hover:bg-rose-600 active:scale-95"
+                                title="Stop timer"
                             >
-                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M6 6h12v12H6z" />
-                                </svg>
+                                <Square class="h-4 w-4" fill="currentColor" :stroke-width="0" />
                             </button>
                         </div>
                     </div>
 
-                    <!-- Tags Row -->
-                    <div class="flex items-center gap-2 px-2 pb-2">
+                    <!-- Tags row -->
+                    <div class="relative flex flex-wrap items-center gap-1.5 px-3 pb-3">
                         <button
                             v-for="tag in timerTags"
                             :key="tag"
                             @click="removeTimerTag(tag)"
-                            class="group inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            class="group inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-rose-500/15 dark:hover:text-rose-400"
                         >
+                            <TagIcon class="h-3 w-3 opacity-60" />
                             {{ tag }}
-                            <svg class="h-3 w-3 opacity-50 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <X class="h-3 w-3 opacity-50 group-hover:opacity-100" />
                         </button>
-                        
+
                         <button
                             v-if="!showTagInput"
-                            @click="showTagInput = true"
-                            class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                            @click="focusTagInput"
+                            class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
                         >
-                            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                            </svg>
+                            <Plus class="h-3 w-3" />
                             Add tag
                         </button>
-                        
+
                         <input
                             v-else
                             v-model="timerTagInput"
                             ref="timerTagInputRef"
                             type="text"
-                            placeholder="Tag name..."
-                            class="w-32 rounded-lg border-0 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Tag name…"
+                            class="w-32 rounded-md border-0 bg-slate-100 px-2 py-1 text-xs focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-800 dark:text-slate-200"
                             @keyup.enter.prevent="addTimerTag"
+                            @keyup.escape="showTagInput = false; timerTagInput = ''"
                             @blur="onTagInputBlur"
                         />
                     </div>
                 </div>
 
-                <!-- Manual Entry Form - Slide Down -->
+                <!-- Manual entry form -->
                 <transition
                     enter-active-class="transition-all duration-200 ease-out"
                     enter-from-class="opacity-0 -translate-y-2"
@@ -368,351 +600,397 @@ const datePickerConfig = {
                     leave-from-class="opacity-100 translate-y-0"
                     leave-to-class="opacity-0 -translate-y-2"
                 >
-                    <div v-if="showManualEntry" class="mb-8 rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-lg shadow-gray-200/50 dark:shadow-black/20">
-                        <h3 class="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">Add Time Entry</h3>
-                        
+                    <div
+                        v-if="showManualEntry"
+                        class="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                    >
+                        <div class="mb-4 flex items-center gap-2">
+                            <Sparkles class="h-4 w-4 text-indigo-500" />
+                            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Add past entry</h3>
+                        </div>
+
                         <div class="space-y-4">
-                            <!-- Top Row: Project & Description -->
-                            <div class="flex gap-3">
-                                <div class="relative shrink-0">
-                                    <select
-                                        v-model="manualForm.project_id"
-                                        class="appearance-none rounded-xl border-0 bg-gray-100 dark:bg-gray-700 px-4 py-2.5 pr-10 text-sm font-medium text-gray-700 dark:text-gray-300 focus:bg-gray-200 dark:focus:bg-gray-600 focus:ring-0 transition-colors cursor-pointer"
-                                    >
-                                        <option :value="null">No Project</option>
-                                        <option v-for="project in projects" :key="project.id" :value="project.id">
-                                            {{ project.name }}
-                                        </option>
-                                    </select>
-                                    <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                                        <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </div>
-                                </div>
+                            <div class="flex flex-col gap-3 sm:flex-row">
+                                <ProjectSelect
+                                    v-model="manualForm.project_id"
+                                    :projects="projects"
+                                    placeholder="No project"
+                                    class="w-full shrink-0 sm:w-48"
+                                />
                                 <input
                                     v-model="manualForm.description"
                                     type="text"
                                     placeholder="What did you work on?"
-                                    class="flex-1 rounded-xl border-0 bg-gray-100 dark:bg-gray-700 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:bg-gray-200 dark:focus:bg-gray-600 focus:ring-0 transition-colors"
+                                    class="flex-1 rounded-xl border-0 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-slate-200 focus:ring-2 focus:ring-indigo-500/30 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:hover:bg-slate-700"
                                 />
                             </div>
 
-                            <!-- Time Range -->
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div>
-                                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">Start Time</label>
-                                    <VueDatePicker
-                                        v-model="manualForm.started_at"
-                                        :enable-time-picker="true"
-                                        :is-24="true"
-                                        format="yyyy-MM-dd HH:mm"
-                                        placeholder="Select start time"
-                                        class="dp-custom"
-                                        auto-apply
-                                    />
+                                    <div class="mb-1.5 flex items-center justify-between">
+                                        <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Start</label>
+                                        <button
+                                            type="button"
+                                            @click="manualStartDate = nowDateInput(); manualStartTime = nowTimeInput()"
+                                            class="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                        >
+                                            Now
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <input
+                                            v-model="manualStartDate"
+                                            type="date"
+                                            class="dt-input flex-1"
+                                        />
+                                        <input
+                                            v-model="manualStartTime"
+                                            type="time"
+                                            class="dt-input w-28"
+                                        />
+                                    </div>
                                 </div>
                                 <div>
-                                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">End Time</label>
-                                    <VueDatePicker
-                                        v-model="manualForm.ended_at"
-                                        :enable-time-picker="true"
-                                        :is-24="true"
-                                        format="yyyy-MM-dd HH:mm"
-                                        placeholder="Select end time"
-                                        class="dp-custom"
-                                        auto-apply
-                                    />
+                                    <div class="mb-1.5 flex items-center justify-between">
+                                        <label class="text-xs font-medium text-slate-500 dark:text-slate-400">End</label>
+                                        <button
+                                            type="button"
+                                            @click="manualEndDate = nowDateInput(); manualEndTime = nowTimeInput()"
+                                            class="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                        >
+                                            Now
+                                        </button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <input
+                                            v-model="manualEndDate"
+                                            type="date"
+                                            class="dt-input flex-1"
+                                        />
+                                        <input
+                                            v-model="manualEndTime"
+                                            type="time"
+                                            class="dt-input w-28"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Tags -->
+                            <div v-if="manualDuration" class="-mt-1 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                <Clock class="h-3.5 w-3.5" />
+                                Duration: <span class="font-mono font-semibold text-slate-700 dark:text-slate-200">{{ manualDuration }}</span>
+                            </div>
+
                             <div>
-                                <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">Tags</label>
-                                <div class="flex flex-wrap items-center gap-2">
+                                <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Tags</label>
+                                <div class="flex flex-wrap items-center gap-1.5">
                                     <button
                                         v-for="tag in manualTags"
                                         :key="tag"
                                         @click="removeManualTag(tag)"
-                                        class="group inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                        class="group inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-rose-500/15 dark:hover:text-rose-400"
                                     >
+                                        <TagIcon class="h-3 w-3 opacity-60" />
                                         {{ tag }}
-                                        <svg class="h-3 w-3 opacity-50 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
+                                        <X class="h-3 w-3 opacity-50 group-hover:opacity-100" />
                                     </button>
-                                    
                                     <button
                                         v-if="!showManualTagInput"
-                                        @click="showManualTagInput = true"
-                                        class="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 hover:border-gray-400 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                                        @click="focusManualTagInput"
+                                        class="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs font-medium text-slate-400 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
                                     >
-                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                        </svg>
+                                        <Plus class="h-3 w-3" />
                                         Add tag
                                     </button>
-                                    
                                     <input
-                            v-else
-                            v-model="manualTagInput"
-                            ref="manualTagInputRef"
-                            type="text"
-                            placeholder="Tag name..."
-                            class="w-32 rounded-lg border-0 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500"
-                            @keyup.enter.prevent="addManualTag"
-                            @blur="onManualTagInputBlur"
-                        />
+                                        v-else
+                                        v-model="manualTagInput"
+                                        ref="manualTagInputRef"
+                                        type="text"
+                                        placeholder="Tag name…"
+                                        class="w-32 rounded-md border-0 bg-slate-100 px-2 py-1 text-xs focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-800 dark:text-slate-200"
+                                        @keyup.enter.prevent="addManualTag"
+                                        @keyup.escape="showManualTagInput = false; manualTagInput = ''"
+                                        @blur="onManualTagInputBlur"
+                                    />
                                 </div>
                             </div>
 
-                            <!-- Submit -->
                             <div class="flex justify-end pt-2">
                                 <button
                                     @click="submitManualEntry"
                                     :disabled="manualForm.processing"
-                                    class="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                                    class="rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-indigo-500/25 transition hover:shadow-lg disabled:opacity-50"
                                 >
-                                    Add Entry
+                                    Add entry
                                 </button>
                             </div>
                         </div>
                     </div>
                 </transition>
 
-                <!-- Edit Modal -->
-                <div v-if="editEntry" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                    <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-2xl">
-                        <h3 class="mb-4 text-lg font-medium text-gray-900 dark:text-gray-100">Edit Time Entry</h3>
-                        
-                        <div class="space-y-4">
-                            <div>
-                                <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">Description</label>
-                                <input
-                                    v-model="editForm.description"
-                                    type="text"
-                                    class="w-full rounded-xl border-0 bg-gray-100 dark:bg-gray-700 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:bg-gray-200 dark:focus:bg-gray-600 focus:ring-0 transition-colors"
-                                />
+                <!-- Edit modal -->
+                <transition
+                    enter-active-class="transition duration-150"
+                    enter-from-class="opacity-0"
+                    enter-to-class="opacity-100"
+                    leave-active-class="transition duration-100"
+                    leave-from-class="opacity-100"
+                    leave-to-class="opacity-0"
+                >
+                    <div
+                        v-if="editEntry"
+                        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+                        @click.self="editEntry = null"
+                    >
+                        <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                            <div class="mb-5 flex items-center justify-between">
+                                <h3 class="text-base font-semibold text-slate-900 dark:text-white">Edit entry</h3>
+                                <button @click="editEntry = null" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                                    <X class="h-4 w-4" />
+                                </button>
                             </div>
-                            
-                            <div>
-                                <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">Project</label>
-                                <select v-model="editForm.project_id" class="w-full rounded-xl border-0 bg-gray-100 dark:bg-gray-700 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 focus:bg-gray-200 dark:focus:bg-gray-600 focus:ring-0 transition-colors appearance-none">
-                                    <option :value="null">No Project</option>
-                                    <option v-for="project in projects" :key="project.id" :value="project.id">
-                                        {{ project.name }}
-                                    </option>
-                                </select>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-3">
+
+                            <div class="space-y-4">
                                 <div>
-                                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">Start Time</label>
-                                    <VueDatePicker
-                                        v-model="editForm.started_at"
-                                        :enable-time-picker="true"
-                                        :is-24="true"
-                                        format="yyyy-MM-dd HH:mm"
-                                        class="dp-custom"
-                                        auto-apply
-                                    />
-                                </div>
-                                <div>
-                                    <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">End Time</label>
-                                    <VueDatePicker
-                                        v-model="editForm.ended_at"
-                                        :enable-time-picker="true"
-                                        :is-24="true"
-                                        format="yyyy-MM-dd HH:mm"
-                                        class="dp-custom"
-                                        auto-apply
-                                    />
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">Tags</label>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <button
-                                        v-for="tag in editTags"
-                                        :key="tag"
-                                        @click="removeEditTag(tag)"
-                                        class="group inline-flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                    >
-                                        {{ tag }}
-                                        <svg class="h-3 w-3 opacity-50 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                    
-                                    <button
-                                        v-if="!showEditTagInput"
-                                        @click="showEditTagInput = true"
-                                        class="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 hover:border-gray-400 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
-                                    >
-                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add tag
-                                    </button>
-                                    
+                                    <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Description</label>
                                     <input
-                                        v-else
-                                        v-model="editTagInput"
-                                        ref="editTagInputRef"
+                                        v-model="editForm.description"
                                         type="text"
-                                        placeholder="Tag name..."
-                                        class="w-32 rounded-lg border-0 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500"
-                                        @keyup.enter.prevent="addEditTag"
-                                        @blur="onEditTagInputBlur"
+                                        class="w-full rounded-xl border-0 bg-slate-100 px-4 py-2.5 text-sm text-slate-900 focus:bg-slate-200 focus:ring-2 focus:ring-indigo-500/30 dark:bg-slate-800 dark:text-white"
                                     />
                                 </div>
+
+                                <div>
+                                    <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Project</label>
+                                    <ProjectSelect
+                                        v-model="editForm.project_id"
+                                        :projects="projects"
+                                        placeholder="No project"
+                                        class="w-full"
+                                    />
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Start</label>
+                                        <div class="flex gap-2">
+                                            <input
+                                                v-model="editStartDate"
+                                                type="date"
+                                                class="dt-input flex-1"
+                                            />
+                                            <input
+                                                v-model="editStartTime"
+                                                type="time"
+                                                class="dt-input w-28"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">End</label>
+                                        <div class="flex gap-2">
+                                            <input
+                                                v-model="editEndDate"
+                                                type="date"
+                                                class="dt-input flex-1"
+                                            />
+                                            <input
+                                                v-model="editEndTime"
+                                                type="time"
+                                                class="dt-input w-28"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-if="editDuration" class="-mt-1 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <Clock class="h-3.5 w-3.5" />
+                                    Duration: <span class="font-mono font-semibold text-slate-700 dark:text-slate-200">{{ editDuration }}</span>
+                                </div>
+
+                                <div>
+                                    <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Tags</label>
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <button
+                                            v-for="tag in editTags"
+                                            :key="tag"
+                                            @click="removeEditTag(tag)"
+                                            class="group inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-rose-500/15 dark:hover:text-rose-400"
+                                        >
+                                            <TagIcon class="h-3 w-3 opacity-60" />
+                                            {{ tag }}
+                                            <X class="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                                        </button>
+                                        <button
+                                            v-if="!showEditTagInput"
+                                            @click="focusEditTagInput"
+                                            class="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs font-medium text-slate-400 hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
+                                        >
+                                            <Plus class="h-3 w-3" />
+                                            Add tag
+                                        </button>
+                                        <input
+                                            v-else
+                                            v-model="editTagInput"
+                                            ref="editTagInputRef"
+                                            type="text"
+                                            placeholder="Tag name…"
+                                            class="w-32 rounded-md border-0 bg-slate-100 px-2 py-1 text-xs focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-800 dark:text-slate-200"
+                                            @keyup.enter.prevent="addEditTag"
+                                            @keyup.escape="showEditTagInput = false; editTagInput = ''"
+                                            @blur="onEditTagInputBlur"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <div class="mt-6 flex justify-end gap-3">
-                            <button
-                                @click="editEntry = null"
-                                class="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                @click="submitEdit"
-                                :disabled="editForm.processing"
-                                class="rounded-xl bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                            >
-                                Save Changes
-                            </button>
+
+                            <div class="mt-6 flex justify-end gap-3">
+                                <button
+                                    @click="editEntry = null"
+                                    class="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    @click="submitEdit"
+                                    :disabled="editForm.processing"
+                                    class="rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 px-5 py-2 text-sm font-medium text-white shadow-md shadow-indigo-500/25 transition hover:shadow-lg disabled:opacity-50"
+                                >
+                                    Save changes
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </transition>
 
-                <!-- Entries Grouped by Day -->
+                <!-- Entries grouped by day -->
                 <div class="space-y-6">
-                    <template v-for="(day, dayIndex) in groupedDays" :key="day.date">
-                        <!-- Week Header -->
-                        <div v-if="day.show_week_header" class="flex items-center gap-4 py-3">
-                            <div class="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-700 to-transparent"></div>
-                            <span class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                {{ day.week_start }} — {{ day.week_end }}
-                            </span>
-                            <div class="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-700 to-transparent"></div>
+                    <template v-for="day in groupedDays" :key="day.date">
+                        <!-- Week divider -->
+                        <div v-if="day.show_week_header" class="flex items-center gap-3 pt-2">
+                            <div class="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-800"></div>
+                            <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                                <span>{{ day.week_start }} — {{ day.week_end }}</span>
+                                <span v-if="day.week_total_seconds !== null" class="font-mono normal-case tracking-normal text-slate-700 dark:text-slate-200">
+                                    · {{ formatHM(day.week_total_seconds) }}
+                                </span>
+                            </div>
+                            <div class="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-800"></div>
                         </div>
 
-                        <!-- Day Header - Sticky Style -->
-                        <div class="sticky top-0 z-10 flex items-center justify-between py-3 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-sm">
+                        <!-- Day header -->
+                        <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
-                                <div 
-                                    class="flex h-10 w-10 items-center justify-center rounded-xl bg-white dark:bg-gray-800 shadow-sm text-sm font-semibold"
-                                    :class="day.is_today ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-400'"
+                                <div
+                                    class="flex h-11 w-11 flex-col items-center justify-center rounded-xl border text-xs font-semibold leading-none"
+                                    :class="day.is_today
+                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300'
+                                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'"
                                 >
-                                    {{ new Date(day.date).getDate() }}
+                                    <span class="text-[10px] uppercase opacity-60">{{ new Date(day.date).toLocaleDateString('en-US', { month: 'short' }) }}</span>
+                                    <span class="text-base">{{ new Date(day.date).getDate() }}</span>
                                 </div>
                                 <div>
-                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                        <span v-if="day.is_today" class="text-indigo-600 dark:text-indigo-400">Today</span>
+                                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white">
+                                        <span v-if="day.is_today">Today</span>
                                         <span v-else-if="day.is_yesterday">Yesterday</span>
-                                        <span v-else>{{ day.day_label }}</span>
+                                        <span v-else>{{ new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' }) }}</span>
                                     </h3>
-                                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ new Date(day.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) }}</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                                        {{ new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
+                                    </p>
                                 </div>
                             </div>
-                            <span class="font-mono text-sm font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-lg shadow-sm">
-                                {{ formatDurationShort(day.total_seconds) }}
+                            <span class="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-semibold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                {{ formatHM(day.total_seconds) }}
                             </span>
                         </div>
 
-                        <!-- Day Entries -->
-                        <div class="space-y-2">
+                        <!-- Entries -->
+                        <div class="space-y-1.5">
                             <div
                                 v-for="entry in day.entries"
                                 :key="entry.id"
-                                class="group relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200"
+                                class="group relative overflow-hidden rounded-xl border border-slate-200/70 bg-white transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+                                :class="!entry.ended_at ? 'ring-1 ring-indigo-300/40 dark:ring-indigo-500/30' : ''"
                             >
-                                <!-- Left Edge Gradient -->
                                 <div
-                                    class="absolute left-0 top-0 bottom-0 w-1"
-                                    :style="{ background: getProjectGradient(entry.project) }"
+                                    class="absolute inset-y-0 left-0 w-1"
+                                    :style="{ backgroundColor: getProjectColor(entry.project) }"
                                 ></div>
 
-                                <div class="flex items-center justify-between p-4 pl-5">
-                                    <!-- Left: Description & Meta -->
+                                <div class="flex items-center gap-3 p-3 pl-4">
                                     <div class="min-w-0 flex-1">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                        <p class="truncate text-sm font-medium text-slate-900 dark:text-white">
                                             {{ entry.description || 'No description' }}
+                                            <span v-if="!entry.ended_at" class="ml-1 inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
+                                                <span class="relative flex h-1.5 w-1.5">
+                                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
+                                                    <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                                                </span>
+                                                Live
+                                            </span>
                                         </p>
-                                        <div class="flex items-center gap-3 mt-1">
-                                            <span 
-                                                class="text-xs font-medium"
+                                        <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                            <span
+                                                class="inline-flex items-center gap-1 font-medium"
                                                 :style="{ color: getProjectColor(entry.project) }"
                                             >
+                                                <Folder class="h-3 w-3" />
                                                 {{ getProjectName(entry.project) }}
                                             </span>
-                                            <template v-if="entry.tags && entry.tags.length">
-                                                <span class="text-gray-300 dark:text-gray-600">·</span>
-                                                <div class="flex items-center gap-1.5">
-                                                    <span
-                                                        v-for="tag in entry.tags"
-                                                        :key="tag.id"
-                                                        class="text-xs text-gray-400 dark:text-gray-500"
-                                                    >
-                                                        #{{ tag.name }}
-                                                    </span>
-                                                </div>
-                                            </template>
+                                            <span
+                                                v-for="tag in entry.tags || []"
+                                                :key="tag.id"
+                                                class="text-slate-400 dark:text-slate-500"
+                                            >
+                                                #{{ tag.name }}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <!-- Right: Time & Actions -->
-                                    <div class="flex items-center gap-4 ml-4">
+                                    <div class="ml-2 flex items-center gap-3">
                                         <div class="text-right">
-                                            <p class="font-mono text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                                {{ entry.formatted_duration || formatDuration(entry.duration_seconds) }}
+                                            <p class="font-mono text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                                                {{ entry.ended_at ? (entry.formatted_duration || formatHM(entry.duration_seconds)) : liveTimerDisplay }}
                                             </p>
-                                            <p class="text-xs text-gray-400 dark:text-gray-500">
+                                            <p class="text-[11px] text-slate-400 dark:text-slate-500">
                                                 {{ formatTime(entry.started_at) }} – {{ formatTime(entry.ended_at) }}
                                             </p>
                                         </div>
-                                        
-                                        <!-- Action Buttons - Always visible on mobile, hover on desktop -->
-                                        <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+
+                                        <div class="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                                             <button
                                                 v-if="entry.ended_at"
                                                 @click="restartTimer(entry)"
-                                                title="Restart"
-                                                class="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                                                title="Resume"
+                                                class="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-400"
                                             >
-                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                </svg>
+                                                <RotateCcw class="h-4 w-4" />
                                             </button>
                                             <button
                                                 v-if="entry.ended_at"
                                                 @click="openEdit(entry)"
-                                                class="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                                                title="Edit"
+                                                class="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-400"
                                             >
-                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
+                                                <Pencil class="h-4 w-4" />
                                             </button>
                                             <button
-                                                v-if="entry.ended_at === null"
+                                                v-if="!entry.ended_at"
                                                 @click="stopTimer(entry)"
-                                                class="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                title="Stop"
+                                                class="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15 dark:hover:text-rose-400"
                                             >
-                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                                                </svg>
+                                                <Square class="h-4 w-4" fill="currentColor" :stroke-width="0" />
                                             </button>
                                             <button
                                                 @click="deleteEntry(entry)"
-                                                class="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                title="Delete"
+                                                class="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/15 dark:hover:text-rose-400"
                                             >
-                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
+                                                <Trash2 class="h-4 w-4" />
                                             </button>
                                         </div>
                                     </div>
@@ -721,28 +999,28 @@ const datePickerConfig = {
                         </div>
                     </template>
 
-                    <!-- Load More -->
-                    <div v-if="hasMore" class="flex justify-center pt-6">
+                    <!-- Load more -->
+                    <div v-if="hasMore" class="flex justify-center pt-4">
                         <button
                             @click="loadMore"
-                            class="group flex items-center gap-2 rounded-xl bg-white dark:bg-gray-800 px-6 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 shadow-sm hover:shadow-md transition-all"
+                            class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
-                            Load More
-                            <svg class="h-4 w-4 transition-transform group-hover:translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                            </svg>
+                            Load more
                         </button>
                     </div>
 
-                    <!-- Empty State -->
-                    <div v-if="groupedDays.length === 0" class="rounded-2xl bg-white dark:bg-gray-800 p-12 text-center shadow-sm">
-                        <div class="mx-auto h-12 w-12 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4">
-                            <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                    <!-- Empty -->
+                    <div
+                        v-if="groupedDays.length === 0"
+                        class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900"
+                    >
+                        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-fuchsia-100 text-indigo-600 dark:from-indigo-500/15 dark:to-fuchsia-500/15 dark:text-indigo-300">
+                            <Hourglass class="h-5 w-5" />
                         </div>
-                        <p class="text-gray-900 dark:text-gray-100 font-medium">No time entries yet</p>
-                        <p class="mt-1 text-sm text-gray-400 dark:text-gray-500">Start the timer or add a manual entry</p>
+                        <p class="font-medium text-slate-900 dark:text-white">No time entries yet</p>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Start the timer above or add a manual entry to get going.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -751,49 +1029,42 @@ const datePickerConfig = {
 </template>
 
 <style>
-/* Custom Date Picker Styles */
-.dp-custom .dp__input {
-    border: none;
+.dt-input {
+    border: 0;
     border-radius: 0.75rem;
-    background-color: rgb(243 244 246);
-    padding: 0.625rem 1rem;
+    background-color: rgb(241 245 249);
+    padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
-    color: rgb(17 24 39);
-    transition: all 0.2s;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+    transition: background-color 0.15s, box-shadow 0.15s;
+    min-width: 0;
 }
-
-.dp-custom .dp__input:hover {
-    background-color: rgb(229 231 235);
+.dt-input:hover {
+    background-color: rgb(226 232 240);
 }
-
-.dp-custom .dp__input:focus {
-    background-color: rgb(229 231 235);
-    box-shadow: none;
+.dt-input:focus {
+    background-color: rgb(226 232 240);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
 }
-
-.dark .dp-custom .dp__input {
-    background-color: rgb(55 65 81);
-    color: rgb(243 244 246);
+.dt-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s;
 }
-
-.dark .dp-custom .dp__input:hover {
-    background-color: rgb(75 85 99);
+.dt-input:hover::-webkit-calendar-picker-indicator {
+    opacity: 0.85;
 }
-
-.dark .dp-custom .dp__input:focus {
-    background-color: rgb(75 85 99);
+.dark .dt-input {
+    background-color: rgb(30 41 59);
+    color: rgb(241 245 249);
+    color-scheme: dark;
 }
-
-.dp-custom .dp__input_icon {
-    color: rgb(156 163 175);
+.dark .dt-input:hover {
+    background-color: rgb(51 65 85);
 }
-
-.dp-custom .dp__clear_icon {
-    color: rgb(156 163 175);
-}
-
-.dp-custom .dp__menu {
-    border-radius: 0.75rem;
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+.dark .dt-input:focus {
+    background-color: rgb(51 65 85);
 }
 </style>

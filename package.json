@@ -21,6 +21,8 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
-        "@vuepic/vue-datepicker": "^12.1.0"
+        "chart.js": "^4.5.1",
+        "lucide-vue-next": "^1.0.0",
+        "vue-chartjs": "^5.3.3"
     }
 }

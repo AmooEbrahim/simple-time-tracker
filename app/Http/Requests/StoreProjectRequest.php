@@ -14,9 +14,11 @@ class StoreProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'parent_id' => ['nullable', 'exists:projects,id'],
             'name' => ['required', 'string', 'max:255'],
             'color' => ['nullable', 'string', 'max:7'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'is_archived' => ['nullable', 'boolean'],
         ];
     }
 }

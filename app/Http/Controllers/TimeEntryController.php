@@ -10,7 +10,6 @@ use App\Services\TimeTrackingService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,7 +22,12 @@ class TimeEntryController extends Controller
     public function index(Request $request): Response
     {
         $cursor = $request->get('cursor');
-        $projects = auth()->user()->projects()->latest()->get();
+        $projects = auth()->user()->projects()
+            ->whereNull('parent_id')
+            ->where('is_archived', false)
+            ->with(['children' => fn ($q) => $q->where('is_archived', false)->orderBy('name')])
+            ->latest()
+            ->get();
         $tags = auth()->user()->tags()->latest()->get();
         $runningTimer = $this->timeTrackingService->getRunningTimer();
 
@@ -39,6 +43,8 @@ class TimeEntryController extends Controller
             'hasMore' => $hasMore,
             'nextCursor' => $nextCursor,
             'totalSeconds' => $totalSeconds,
+            'todayTotalSeconds' => $this->timeTrackingService->getTodayTotalSeconds(),
+            'weekTotalSeconds' => $this->timeTrackingService->getThisWeekTotalSeconds(),
             'projects' => $projects,
             'tags' => $tags,
         ]);
@@ -116,9 +122,28 @@ class TimeEntryController extends Controller
         return redirect()->route('dashboard');
     }
 
-    public function stop(TimeEntry $timeEntry): RedirectResponse
+    public function stop(Request $request, TimeEntry $timeEntry): RedirectResponse
     {
         $this->authorize('update', $timeEntry);
+
+        $validated = $request->validate([
+            'description' => ['nullable', 'string', 'max:500'],
+            'project_id' => ['nullable', 'exists:projects,id'],
+            'tag_names' => ['nullable', 'array'],
+            'tag_names.*' => ['string', 'max:50'],
+        ]);
+
+        if ($request->has('description')) {
+            $timeEntry->description = $validated['description'] ?? null;
+        }
+        if ($request->has('project_id')) {
+            $timeEntry->project_id = $validated['project_id'] ?? null;
+        }
+        $timeEntry->save();
+
+        if ($request->has('tag_names')) {
+            $this->syncTags($timeEntry, $validated);
+        }
 
         $this->timeTrackingService->stopTimer($timeEntry);
 
@@ -145,10 +170,12 @@ class TimeEntryController extends Controller
     {
         $tagIds = $validated['tag_ids'] ?? [];
 
-        if (!empty($validated['tag_names'])) {
+        if (! empty($validated['tag_names'])) {
             foreach ($validated['tag_names'] as $tagName) {
                 $tagName = trim($tagName);
-                if (empty($tagName)) continue;
+                if (empty($tagName)) {
+                    continue;
+                }
 
                 $tag = Tag::firstOrCreate(
                     ['user_id' => auth()->id(), 'name' => $tagName],

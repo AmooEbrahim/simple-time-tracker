@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TimeEntry;
 use App\Services\TimeTrackingService;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,27 +17,56 @@ class ReportController extends Controller
         private readonly TimeTrackingService $timeTrackingService
     ) {}
 
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request): Response|RedirectResponse
     {
+        $filterKeys = ['range', 'project_id', 'start', 'end'];
+        $hasFilters = collect($filterKeys)->some(fn ($key) => $request->has($key));
+
+        if ($hasFilters) {
+            $request->session()->put('reports_filters', $request->only($filterKeys));
+        } else {
+            $saved = $request->session()->get('reports_filters');
+            if ($saved && ! empty(array_filter($saved))) {
+                return redirect()->route('reports', $saved);
+            }
+        }
+
         $range = $request->get('range', 'week');
         $projectId = $request->get('project_id');
+        $tz = 'Asia/Tehran';
+
+        $weekStart = $this->timeTrackingService->getWeekStart(Carbon::today($tz));
 
         [$start, $end] = match ($range) {
-            'today' => [now(), now()],
-            'week' => [now()->startOfWeek(), now()->endOfWeek()],
-            'month' => [now()->startOfMonth(), now()->endOfMonth()],
-            'year' => [now()->startOfYear(), now()->endOfYear()],
+            'today' => [now($tz), now($tz)],
+            'week' => [$weekStart, $weekStart->copy()->addDays(6)],
+            'month' => [now($tz)->startOfMonth(), now($tz)->endOfMonth()],
+            'year' => [now($tz)->startOfYear(), now($tz)->endOfYear()],
             'custom' => [
-                $request->has('start') ? Carbon::parse($request->start) : now()->subDays(30),
-                $request->has('end') ? Carbon::parse($request->end) : now(),
+                $request->has('start') ? Carbon::parse($request->start, $tz) : now($tz)->subDays(30),
+                $request->has('end') ? Carbon::parse($request->end, $tz) : now($tz),
             ],
         };
 
-        $totalSeconds = $this->timeTrackingService->getTotalSecondsForRange($start, $end, $projectId);
-        $groupedByProject = $this->timeTrackingService->getGroupedByProject($start, $end, $projectId);
-        $groupedByDate = $this->timeTrackingService->getGroupedByDate($start, $end, $projectId);
-        $groupedByTag = $this->timeTrackingService->getGroupedByTag($start, $end, $projectId);
-        $projects = auth()->user()->projects()->latest()->get();
+        $projectIds = null;
+        if ($projectId) {
+            $project = auth()->user()->projects()->find($projectId);
+            if ($project) {
+                $projectIds = $project->getAllDescendantIds();
+            }
+        }
+
+        $totalSeconds = $this->timeTrackingService->getTotalSecondsForRange($start, $end, $projectIds);
+        $groupedByProject = $this->timeTrackingService->getGroupedByProject($start, $end, $projectIds);
+        $groupedByDate = $this->timeTrackingService->getGroupedByDate($start, $end, $projectIds);
+        $groupedByTag = $this->timeTrackingService->getGroupedByTag($start, $end, $projectIds);
+        $groupedBySubProject = $this->timeTrackingService->getGroupedBySubProject($start, $end, $projectIds);
+        $projects = auth()->user()->projects()
+            ->whereNull('parent_id')
+            ->where('is_archived', false)
+            ->with(['children' => fn ($q) => $q->where('is_archived', false)->orderBy('name')])
+            ->latest()
+            ->get();
 
         return Inertia::render('Reports/Index', [
             'range' => $range,
@@ -47,20 +77,33 @@ class ReportController extends Controller
             'groupedByProject' => $groupedByProject,
             'groupedByDate' => $groupedByDate,
             'groupedByTag' => $groupedByTag,
+            'groupedBySubProject' => $groupedBySubProject,
             'projects' => $projects,
         ]);
     }
 
     public function export(Request $request): StreamedResponse
     {
-        $start = $request->has('start') ? Carbon::parse($request->start) : now()->startOfMonth();
-        $end = $request->has('end') ? Carbon::parse($request->end) : now()->endOfMonth();
+        $tz = 'Asia/Tehran';
+        $start = $request->has('start') ? Carbon::parse($request->start, $tz) : now($tz)->startOfMonth();
+        $end = $request->has('end') ? Carbon::parse($request->end, $tz) : now($tz)->endOfMonth();
         $projectId = $request->get('project_id');
+
+        $startUtc = $start->copy()->startOfDay()->timezone('UTC');
+        $endUtc = $end->copy()->endOfDay()->timezone('UTC');
+
+        $projectIds = null;
+        if ($projectId) {
+            $project = auth()->user()->projects()->find($projectId);
+            if ($project) {
+                $projectIds = $project->getAllDescendantIds();
+            }
+        }
 
         $entries = TimeEntry::where('user_id', auth()->id())
             ->with('project')
-            ->whereBetween('started_at', [$start->startOfDay(), $end->endOfDay()])
-            ->when($projectId, fn ($q) => $q->where('project_id', $projectId))
+            ->whereBetween('started_at', [$startUtc, $endUtc])
+            ->when($projectIds, fn ($q) => $q->whereIn('project_id', $projectIds))
             ->orderByDesc('started_at')
             ->get();
 

@@ -1,11 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import { ref, onMounted, computed } from 'vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
-import NavLink from '@/Components/NavLink.vue';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { Clock3, FolderKanban, BarChart3, Sun, Moon, Laptop, Menu, X } from 'lucide-vue-next';
+
+const page = usePage();
 
 const showingNavigationDropdown = ref(false);
 const theme = ref('system');
@@ -13,18 +13,31 @@ const theme = ref('system');
 const applyTheme = (t) => {
     theme.value = t;
     localStorage.setItem('theme', t);
+    const root = document.documentElement;
     if (t === 'dark') {
-        document.documentElement.classList.add('dark');
+        root.classList.add('dark');
     } else if (t === 'light') {
-        document.documentElement.classList.remove('dark');
+        root.classList.remove('dark');
     } else {
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
+            root.classList.add('dark');
         } else {
-            document.documentElement.classList.remove('dark');
+            root.classList.remove('dark');
         }
     }
 };
+
+const cycleTheme = () => {
+    const order = ['system', 'light', 'dark'];
+    const next = order[(order.indexOf(theme.value) + 1) % order.length];
+    applyTheme(next);
+};
+
+const themeIcon = computed(() => {
+    if (theme.value === 'light') return Sun;
+    if (theme.value === 'dark') return Moon;
+    return Laptop;
+});
 
 onMounted(() => {
     const saved = localStorage.getItem('theme') || 'system';
@@ -33,219 +46,169 @@ onMounted(() => {
         if (theme.value === 'system') applyTheme('system');
     });
 });
+
+const userInitials = computed(() => {
+    const name = page.props.auth?.user?.name || '';
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .map((p) => p[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase() || '?';
+});
+
+const navItems = [
+    { name: 'Timer', route: 'dashboard', icon: Clock3 },
+    { name: 'Projects', route: 'projects.index', icon: FolderKanban },
+    { name: 'Reports', route: 'reports', icon: BarChart3 },
+];
 </script>
 
 <template>
-    <div>
-        <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-            <nav
-                class="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
-            >
-                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div class="flex h-16 justify-between">
-                        <div class="flex">
-                            <div class="flex shrink-0 items-center">
-                                <Link :href="route('dashboard')">
-                                    <ApplicationLogo
-                                        class="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200"
-                                    />
-                                </Link>
-                            </div>
+    <div class="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 text-slate-900 dark:text-slate-100">
+        <nav
+            class="sticky top-0 z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/75"
+        >
+            <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center gap-8">
+                    <Link :href="route('dashboard')" class="group flex items-center gap-2">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/25 transition group-hover:scale-105">
+                            <Clock3 class="h-5 w-5" :stroke-width="2.5" />
+                        </span>
+                        <span class="hidden text-base font-semibold tracking-tight sm:inline">
+                            Tempo
+                        </span>
+                    </Link>
 
-                            <div
-                                class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex"
-                            >
-                                <NavLink
-                                    :href="route('dashboard')"
-                                    :active="route().current('dashboard')"
-                                >
-                                    Time Tracker
-                                </NavLink>
-                                <NavLink
-                                    :href="route('projects.index')"
-                                    :active="route().current('projects.index')"
-                                >
-                                    Projects
-                                </NavLink>
-                                <NavLink
-                                    :href="route('reports')"
-                                    :active="route().current('reports')"
-                                >
-                                    Reports
-                                </NavLink>
-                            </div>
-                        </div>
-
-                        <div class="hidden sm:ms-6 sm:flex sm:items-center">
-                            <!-- Theme Selector -->
-                            <div class="relative">
-                                <select
-                                    v-model="theme"
-                                    @change="applyTheme(theme)"
-                                    class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 text-sm py-2 pr-8"
-                                >
-                                    <option value="system">System</option>
-                                    <option value="light">Light</option>
-                                    <option value="dark">Dark</option>
-                                </select>
-                            </div>
-
-                            <div class="relative ms-3">
-                                <Dropdown align="right" width="48">
-                                    <template #trigger>
-                                        <span class="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                class="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none dark:bg-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
-                                            >
-                                                {{ $page.props.auth.user.name }}
-
-                                                <svg
-                                                    class="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fill-rule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clip-rule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </template>
-
-                                    <template #content>
-                                        <DropdownLink
-                                            :href="route('profile.edit')"
-                                        >
-                                            Profile
-                                        </DropdownLink>
-                                        <DropdownLink
-                                            :href="route('logout')"
-                                            method="post"
-                                            as="button"
-                                        >
-                                            Log Out
-                                        </DropdownLink>
-                                    </template>
-                                </Dropdown>
-                            </div>
-                        </div>
-
-                        <div class="-me-2 flex items-center sm:hidden">
-                            <button
-                                @click="
-                                    showingNavigationDropdown =
-                                        !showingNavigationDropdown
-                                "
-                                class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                            >
-                                <svg
-                                    class="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        :class="{
-                                            hidden: showingNavigationDropdown,
-                                            'inline-flex':
-                                                !showingNavigationDropdown,
-                                        }"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        :class="{
-                                            hidden: !showingNavigationDropdown,
-                                            'inline-flex':
-                                                showingNavigationDropdown,
-                                        }"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
+                    <div class="hidden items-center gap-1 sm:flex">
+                        <Link
+                            v-for="item in navItems"
+                            :key="item.route"
+                            :href="route(item.route)"
+                            class="group relative inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                            :class="route().current(item.route)
+                                ? 'text-slate-900 dark:text-white'
+                                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
+                        >
+                            <component :is="item.icon" class="h-4 w-4" :stroke-width="2" />
+                            {{ item.name }}
+                            <span
+                                v-if="route().current(item.route)"
+                                class="absolute inset-x-2 -bottom-[17px] h-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500"
+                            />
+                        </Link>
                     </div>
                 </div>
 
-                <div
-                    :class="{
-                        block: showingNavigationDropdown,
-                        hidden: !showingNavigationDropdown,
-                    }"
-                    class="sm:hidden"
-                >
-                    <div class="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            :href="route('dashboard')"
-                            :active="route().current('dashboard')"
-                        >
-                            Time Tracker
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            :href="route('projects.index')"
-                            :active="route().current('projects.index')"
-                        >
-                            Projects
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            :href="route('reports')"
-                            :active="route().current('reports')"
-                        >
-                            Reports
-                        </ResponsiveNavLink>
-                    </div>
-
-                    <div
-                        class="border-t border-gray-200 pb-1 pt-4 dark:border-gray-700"
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="cycleTheme"
+                        class="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:inline-flex"
+                        :title="`Theme: ${theme}`"
                     >
-                        <div class="px-4">
-                            <div
-                                class="text-base font-medium text-gray-800 dark:text-gray-200"
-                            >
-                                {{ $page.props.auth.user.name }}
-                            </div>
-                            <div class="text-sm font-medium text-gray-500">
-                                {{ $page.props.auth.user.email }}
-                            </div>
-                        </div>
+                        <component :is="themeIcon" class="h-4 w-4" :stroke-width="2" />
+                    </button>
 
-                        <div class="mt-3 space-y-1">
-                            <ResponsiveNavLink :href="route('profile.edit')">
-                                Profile
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                :href="route('logout')"
-                                method="post"
-                                as="button"
-                            >
-                                Log Out
-                            </ResponsiveNavLink>
+                    <div class="hidden sm:block">
+                        <Dropdown align="right" width="48">
+                            <template #trigger>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                >
+                                    <span class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-semibold text-white dark:from-slate-200 dark:to-white dark:text-slate-900">
+                                        {{ userInitials }}
+                                    </span>
+                                    <span class="hidden md:inline">{{ page.props.auth.user.name }}</span>
+                                </button>
+                            </template>
+
+                            <template #content>
+                                <DropdownLink :href="route('profile.edit')">
+                                    Profile
+                                </DropdownLink>
+                                <DropdownLink :href="route('logout')" method="post" as="button">
+                                    Log Out
+                                </DropdownLink>
+                            </template>
+                        </Dropdown>
+                    </div>
+
+                    <button
+                        @click="showingNavigationDropdown = !showingNavigationDropdown"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 sm:hidden"
+                    >
+                        <component :is="showingNavigationDropdown ? X : Menu" class="h-5 w-5" />
+                    </button>
+                </div>
+            </div>
+
+            <transition
+                enter-active-class="transition duration-150 ease-out"
+                enter-from-class="opacity-0 -translate-y-2"
+                enter-to-class="opacity-100 translate-y-0"
+                leave-active-class="transition duration-100 ease-in"
+                leave-from-class="opacity-100 translate-y-0"
+                leave-to-class="opacity-0 -translate-y-2"
+            >
+                <div
+                    v-if="showingNavigationDropdown"
+                    class="border-t border-slate-200 bg-white px-4 py-3 sm:hidden dark:border-slate-800 dark:bg-slate-950"
+                >
+                    <div class="space-y-1">
+                        <Link
+                            v-for="item in navItems"
+                            :key="item.route"
+                            :href="route(item.route)"
+                            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium"
+                            :class="route().current(item.route)
+                                ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
+                                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50'"
+                        >
+                            <component :is="item.icon" class="h-4 w-4" />
+                            {{ item.name }}
+                        </Link>
+                    </div>
+                    <div class="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+                        <div class="px-3 pb-2 text-xs text-slate-500 dark:text-slate-400">
+                            {{ page.props.auth.user.email }}
                         </div>
+                        <button
+                            @click="cycleTheme"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                        >
+                            <component :is="themeIcon" class="h-4 w-4" />
+                            Theme: {{ theme }}
+                        </button>
+                        <Link
+                            :href="route('profile.edit')"
+                            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                        >
+                            Profile
+                        </Link>
+                        <Link
+                            :href="route('logout')"
+                            method="post"
+                            as="button"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50"
+                        >
+                            Log Out
+                        </Link>
                     </div>
                 </div>
-            </nav>
+            </transition>
+        </nav>
 
-            <header
-                class="bg-white shadow-sm dark:bg-gray-800 dark:shadow-gray-700/30"
-                v-if="$slots.header"
-            >
-                <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                    <slot name="header" />
-                </div>
-            </header>
+        <header v-if="$slots.header" class="border-b border-slate-200/70 dark:border-slate-800/60">
+            <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                <slot name="header" />
+            </div>
+        </header>
 
-            <main>
-                <slot />
-            </main>
-        </div>
+        <main>
+            <slot />
+        </main>
     </div>
 </template>

@@ -18,6 +18,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [TimeEntryController::class, 'index'])->name('dashboard');
 
     Route::resource('projects', ProjectController::class)->except(['create', 'edit', 'show']);
+    Route::post('/projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
+    Route::post('/projects/{project}/unarchive', [ProjectController::class, 'unarchive'])->name('projects.unarchive');
 
     Route::post('/time-entries/{timeEntry}/stop', [TimeEntryController::class, 'stop'])->name('time-entries.stop');
     Route::post('/time-entries/{timeEntry}/restart', [TimeEntryController::class, 'restart'])->name('time-entries.restart');
