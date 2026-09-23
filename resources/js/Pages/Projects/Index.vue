@@ -2,7 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
-import { Plus, X, Pencil, Trash2, Folder, Archive, ArchiveRestore, ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { Plus, X, Pencil, Trash2, Folder, Archive, ArchiveRestore, ChevronDown, ChevronRight, Copy, Check } from 'lucide-vue-next';
 
 const props = defineProps({
     projects: Array,
@@ -31,6 +31,19 @@ const subProjectForm = useForm({
 });
 
 const expandedProjects = ref(new Set());
+const copiedId = ref(null);
+
+const copyId = async (id) => {
+    try {
+        await navigator.clipboard.writeText(String(id));
+        copiedId.value = id;
+        setTimeout(() => {
+            if (copiedId.value === id) copiedId.value = null;
+        }, 1200);
+    } catch {
+        // clipboard unavailable
+    }
+};
 
 const toggleExpand = (projectId) => {
     if (expandedProjects.value.has(projectId)) {
@@ -125,7 +138,7 @@ const createSubProject = () => {
                 <div>
                     <h2 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">Projects</h2>
                     <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-                        Group your work by project and sub-project to see where time goes.
+                        Group your work by project and sub-project to see where time goes. Click an ID badge to copy it for CSV import.
                     </p>
                 </div>
                 <button
@@ -280,6 +293,15 @@ const createSubProject = () => {
                                     <div class="min-w-0">
                                         <div class="flex items-center gap-2">
                                             <p class="truncate text-sm font-medium" :class="project.is_archived ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'">{{ project.name }}</p>
+                                            <button
+                                                @click="copyId(project.id)"
+                                                :title="`Copy project ID ${project.id}`"
+                                                class="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-500 transition hover:bg-indigo-100 hover:text-indigo-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
+                                            >
+                                                ID {{ project.id }}
+                                                <Check v-if="copiedId === project.id" class="h-2.5 w-2.5 text-emerald-500" />
+                                                <Copy v-else class="h-2.5 w-2.5 opacity-50" />
+                                            </button>
                                             <span v-if="project.is_archived" class="inline-flex items-center gap-1 rounded-md bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-600 dark:bg-slate-700 dark:text-slate-400">
                                                 <Archive class="h-2.5 w-2.5" />
                                                 Archived
@@ -405,6 +427,15 @@ const createSubProject = () => {
                                             <div class="min-w-0">
                                                 <div class="flex items-center gap-1.5">
                                                     <p class="truncate text-xs font-medium" :class="child.is_archived ? 'text-slate-500 dark:text-slate-400' : 'text-slate-700 dark:text-slate-300'">{{ child.name }}</p>
+                                                    <button
+                                                        @click="copyId(child.id)"
+                                                        :title="`Copy project ID ${child.id}`"
+                                                        class="inline-flex shrink-0 items-center gap-1 rounded bg-slate-100 px-1 py-px font-mono text-[10px] font-semibold text-slate-500 transition hover:bg-indigo-100 hover:text-indigo-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
+                                                    >
+                                                        ID {{ child.id }}
+                                                        <Check v-if="copiedId === child.id" class="h-2 w-2 text-emerald-500" />
+                                                        <Copy v-else class="h-2 w-2 opacity-50" />
+                                                    </button>
                                                     <span v-if="child.is_archived" class="inline-flex items-center gap-0.5 rounded bg-slate-200 px-1 py-px text-[9px] font-medium uppercase tracking-wider text-slate-600 dark:bg-slate-700 dark:text-slate-400">
                                                         <Archive class="h-2 w-2" />
                                                         Archived

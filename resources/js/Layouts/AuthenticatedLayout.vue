@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Clock3, FolderKanban, BarChart3, Sun, Moon, Laptop, Menu, X } from 'lucide-vue-next';
+import { Clock3, FolderKanban, BarChart3, Upload, Sun, Moon, Laptop, Menu, X } from 'lucide-vue-next';
 
 const page = usePage();
 
@@ -62,6 +62,7 @@ const navItems = [
     { name: 'Timer', route: 'dashboard', icon: Clock3 },
     { name: 'Projects', route: 'projects.index', icon: FolderKanban },
     { name: 'Reports', route: 'reports', icon: BarChart3 },
+    { name: 'Import', route: 'import', icon: Upload },
 ];
 </script>
 

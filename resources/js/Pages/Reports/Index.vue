@@ -20,6 +20,7 @@ import {
     Folder,
     Hash,
     Download,
+    Upload,
     Sparkles,
     TrendingUp,
 } from "lucide-vue-next";
@@ -364,13 +365,22 @@ const ranges = [
                         tags.
                     </p>
                 </div>
-                <button
-                    @click="exportReport"
-                    class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                    <Download class="h-4 w-4" />
-                    Export CSV
-                </button>
+                <div class="flex items-center gap-2">
+                    <a
+                        :href="route('import')"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        <Upload class="h-4 w-4" />
+                        Import CSV
+                    </a>
+                    <button
+                        @click="exportReport"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        <Download class="h-4 w-4" />
+                        Export CSV
+                    </button>
+                </div>
             </div>
         </template>
 

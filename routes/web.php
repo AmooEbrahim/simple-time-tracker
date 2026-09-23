@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TimeEntryController;
+use App\Http\Controllers\TimeEntryImportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -27,6 +28,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/reports', ReportController::class)->name('reports');
     Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
+
+    Route::get('/import', [TimeEntryImportController::class, 'create'])->name('import');
+    Route::post('/import', [TimeEntryImportController::class, 'store'])->name('import.store');
+    Route::get('/import/sample', [TimeEntryImportController::class, 'sample'])->name('import.sample');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

@@ -101,7 +101,7 @@ class ReportController extends Controller
         }
 
         $entries = TimeEntry::where('user_id', auth()->id())
-            ->with('project')
+            ->with('project', 'tags')
             ->whereBetween('started_at', [$startUtc, $endUtc])
             ->when($projectIds, fn ($q) => $q->whereIn('project_id', $projectIds))
             ->orderByDesc('started_at')
@@ -112,16 +112,18 @@ class ReportController extends Controller
         return response()->streamDownload(function () use ($entries) {
             $fh = fopen('php://output', 'w');
 
-            fputcsv($fh, ['Description', 'Project', 'Date', 'Start Time', 'End Time', 'Duration (minutes)']);
+            fputcsv($fh, ['Description', 'Project', 'Project ID', 'Date', 'Start Time', 'End Time', 'Duration (minutes)', 'Tags']);
 
             foreach ($entries as $entry) {
                 fputcsv($fh, [
                     $entry->description ?? '',
                     $entry->project?->name ?? 'No Project',
+                    $entry->project_id ?? '',
                     $entry->started_at->format('Y-m-d'),
                     $entry->started_at->format('H:i'),
                     $entry->ended_at?->format('H:i') ?? '',
                     round($entry->duration_seconds / 60, 1),
+                    $entry->tags->pluck('name')->implode(';'),
                 ]);
             }
 
