@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# tempo — CLI companion for the simple-time-tracker project in this repo.
+# Works directly on the project's own database (same data as the web UI).
+# Forwards everything to: php artisan tempo "$@"
+set -euo pipefail
+SRC="${BASH_SOURCE[0]}"
+while [ -L "$SRC" ]; do SRC="$(readlink "$SRC")"; done
+DIR="$(cd "$(dirname "$SRC")" && pwd)"
+exec php "$DIR/artisan" tempo "$@"
