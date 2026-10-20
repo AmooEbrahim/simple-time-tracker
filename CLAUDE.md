@@ -35,6 +35,9 @@ Asia/Tehran local, stored UTC. Never deletes anything. Highlights: bare
 `-m/--message` sets the description on start/stop/update, `-i/--id` shows or
 updates one entry, `-l/--stats/--csv` take `today|yesterday|week|month|all` plus
 `--project=` filter, `--add` creates manual entries, `--prompt` is for PS1.
+`-r/--resume` continues the latest finished entry (copies its description and
+tags, like the menu's "Resume"); it never prompts and just reports when a timer
+is already running.
 
 **Interactive mode** (`app/Console/Commands/Concerns/TempoInteractive.php`, built on
 `laravel/prompts`, already shipped with the framework): bare `tempo` on a real

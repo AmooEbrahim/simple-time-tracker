@@ -33,6 +33,7 @@ class TempoCommand extends Command
         {--i|id= : Show or update one entry by ID}
         {--m|message= : Description text (with start / stop / update / add)}
         {--restart= : Restart an entry by ID (stops running timer, starts a copy)}
+        {--r|resume : Resume the latest finished entry (copies its description and tags)}
         {--add : Add a finished entry manually (needs --start and --finish)}
         {--start= : Start datetime for --add / --id (Tehran local, e.g. "2026-09-20 10:00")}
         {--finish= : End datetime for --add / --id (Tehran local)}
@@ -85,6 +86,10 @@ class TempoCommand extends Command
 
         if ($this->option('restart') !== null) {
             return $this->restartEntry((string) $this->option('restart'));
+        }
+
+        if ($this->option('resume')) {
+            return $this->resumeLatest();
         }
 
         if ($this->option('add')) {
@@ -1051,6 +1056,37 @@ class TempoCommand extends Command
         return 0;
     }
 
+    /**
+     * Resume the latest finished entry: same project, description and tags (like the
+     * menu's "Resume"). Never touches the database when a timer is already running.
+     */
+    private function resumeLatest(): int
+    {
+        $running = $this->runningEntry();
+
+        if ($running) {
+            $this->line('<fg=yellow>already tracking</> <fg=gray>— nothing to resume</>');
+            $this->line('  <fg=gray>started '.$this->fmtHm($running->started_at).' on '.$this->fmtDate($running->started_at).' → '.$this->escape($running->project?->name ?? 'No project').' (stop it with: tempo -e)</>');
+
+            return 0;
+        }
+
+        $last = TimeEntry::where('user_id', $this->userId)
+            ->whereNotNull('ended_at')
+            ->with(['project', 'tags'])
+            ->latest('ended_at')
+            ->first();
+
+        if (! $last) {
+            $this->line('<fg=gray>nothing to resume — no finished entries yet</>');
+            $this->line('  <fg=gray>start one with: tempo <project></>');
+
+            return 0;
+        }
+
+        return $this->restartEntry((string) $last->id);
+    }
+
     private function addManual(): int
     {
         $args = implode(' ', $this->argument('args'));
@@ -1220,7 +1256,7 @@ _tempo_complete() {
     local cur prev
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    local flags="--stop --end --list --stats --csv --projects --all --list-tags --status --tags --project --id --message --restart --add --start --finish --create --new-color --limit --prompt --install-completion --user --yes --help"
+    local flags="--stop --end --list --stats --csv --projects --all --list-tags --status --tags --project --id --message --restart --resume --add --start --finish --create --new-color --limit --prompt --install-completion --user --yes --help"
     local ranges="today yesterday week month all"
     case "$prev" in
         -l|--list|--stats|--csv)
@@ -1241,7 +1277,7 @@ BASH;
 # tempo zsh completion — installed by `tempo --install-completion zsh`
 _tempo() {
     local -a flags ranges shells
-    flags=(--stop --end --list --stats --csv --projects --all --list-tags --status --tags --project --id --message --restart --add --start --finish --create --new-color --limit --prompt --install-completion --user --yes --help)
+    flags=(--stop --end --list --stats --csv --projects --all --list-tags --status --tags --project --id --message --restart --resume --add --start --finish --create --new-color --limit --prompt --install-completion --user --yes --help)
     ranges=(today yesterday week month all)
     shells=(bash zsh)
     if (( CURRENT > 2 )); then
@@ -1273,6 +1309,7 @@ ZSH;
         $this->line('  <fg=cyan>tempo --create "Name"</>      create a project');
         $this->line('  <fg=cyan>tempo -i 12</>                show entry #12; add <fg=cyan>-m / --project / --tags / --start / --finish</> to update it');
         $this->line('  <fg=cyan>tempo --restart 12</>         start a new timer copying entry #12');
+        $this->line('  <fg=cyan>tempo -r</>                   resume the latest finished entry (copies its description + tags)');
         $this->line('  <fg=cyan>tempo --add <proj></>         manual entry (needs <fg=cyan>--start</> + <fg=cyan>--finish</>, Tehran local)');
         $this->line('  <fg=cyan>tempo --list-tags</>          list tags');
         $this->line('  <fg=cyan>tempo --prompt</>             one-liner for your shell prompt');
