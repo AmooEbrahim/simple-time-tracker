@@ -64,7 +64,8 @@ fallback — verify in a real terminal.
 
 - **Single running timer invariant**: starting a new timer stops any existing running timer first (`TimeEntryController::store` and `restart`). Preserve this when adding timer-start paths.
 - **Cursor pagination** on the dashboard uses a composite `started_at|id` cursor (not Laravel's built-in cursor pagination), fetching `PER_PAGE + 1` rows to detect `hasMore`. The running timer is prepended to the first page only.
-- **Week starts on Saturday** (`getWeekStart`) — not Laravel's default Monday. Report presets in `ReportController` use Laravel's default `startOfWeek()`, which is Monday; the dashboard week headers use Saturday. Be deliberate about which one you want.
+- **Week start is a user setting** (`users.week_start`, 0=Sunday..6=Saturday, default Saturday). `getWeekStart` drives dashboard grouping and report week presets; do not reintroduce a hardcoded weekday.
+- **User calendar settings** live on `users` (`calendar`, `week_start`, `weekend_days`, `show_holidays`, `holiday_country`) and are shared to Inertia as `settings`. Storage and URLs stay Gregorian ISO `YYYY-MM-DD`; Jalali/Hijri are display-only.
 - Reports group the same underlying entries three different ways (by project, by date, by tag) in a single request. The tag grouping fans out per-tag and includes a synthetic `no_tag` bucket.
 
 ### Request/response flow
@@ -76,6 +77,8 @@ fallback — verify in a real terminal.
 ### Frontend
 
 Pages live in `resources/js/Pages/` and are resolved by name in `app.js` (e.g. Inertia `render('Dashboard')` → `Pages/Dashboard.vue`). Shared UI in `Components/`, layouts in `Layouts/`. Use the `route()` helper (Ziggy) for named routes.
+
+Dates: `resources/js/lib/calendar.js` is the single formatting/conversion layer (Gregorian/Jalali/Hijri). Use `CalendarDateInput` for date fields (native Gregorian input, custom Jalali/Hijri picker); never parse `YYYY-MM-DD` with `new Date(string)`. Iran holiday data is committed in `resources/js/config/holidays/` and regenerated with `npm run holidays:generate` (`@jalali-js/holidays` is dev-only). The Reports chart shades configured weekend days and, when enabled, holidays.
 
 ### Local Browsing
 main Url is `timetracker.loc`

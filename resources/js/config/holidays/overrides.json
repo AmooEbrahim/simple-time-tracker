@@ -1,0 +1,12 @@
+{
+  "source": "Ad-hoc public mourning days carried over from resources/js/config/offDays.js",
+  "days": {
+    "2026-03-01": ["Public Mourning"],
+    "2026-03-02": ["Public Mourning"],
+    "2026-03-03": ["Public Mourning"],
+    "2026-03-04": ["Public Mourning"],
+    "2026-03-05": ["Public Mourning"],
+    "2026-03-06": ["Public Mourning"],
+    "2026-03-07": ["Public Mourning"]
+  }
+}

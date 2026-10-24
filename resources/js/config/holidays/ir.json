@@ -1,0 +1,430 @@
+{
+  "country": "IR",
+  "source": "University of Tehran Calendar Centre via @jalali-js/holidays 0.4.2; ad-hoc closures from prior app data",
+  "updated": "2026-10-24",
+  "days": {
+    "2023-03-21": [
+      "Nowruz"
+    ],
+    "2023-03-22": [
+      "Nowruz"
+    ],
+    "2023-03-23": [
+      "Nowruz"
+    ],
+    "2023-03-24": [
+      "Nowruz"
+    ],
+    "2023-04-01": [
+      "Jomhoori Eslami"
+    ],
+    "2023-04-02": [
+      "Sizdah Bedar"
+    ],
+    "2023-04-12": [
+      "Shahadat-e Imam Ali"
+    ],
+    "2023-04-22": [
+      "Eyd-e Fetr"
+    ],
+    "2023-04-23": [
+      "Ta'til-e Eyd-e Fetr"
+    ],
+    "2023-05-16": [
+      "Shahadat-e Imam Jafar Sadegh"
+    ],
+    "2023-06-04": [
+      "Rehlat-e Imam Khomeini"
+    ],
+    "2023-06-05": [
+      "15 Khordad"
+    ],
+    "2023-06-29": [
+      "Eyd-e Qorban"
+    ],
+    "2023-07-07": [
+      "Eyd-e Ghadir"
+    ],
+    "2023-07-27": [
+      "Tasu'a"
+    ],
+    "2023-07-28": [
+      "Ashura"
+    ],
+    "2023-09-06": [
+      "Arba'in"
+    ],
+    "2023-09-14": [
+      "Rehlat-e Payambar va Shahadat-e Imam Hasan"
+    ],
+    "2023-09-16": [
+      "Shahadat-e Imam Reza"
+    ],
+    "2023-09-24": [
+      "Shahadat-e Imam Hasan Askari"
+    ],
+    "2023-10-03": [
+      "Veladat-e Payambar va Imam Jafar Sadegh"
+    ],
+    "2023-12-17": [
+      "Shahadat-e Hazrat Fatemeh"
+    ],
+    "2024-01-25": [
+      "Veladat-e Imam Ali"
+    ],
+    "2024-02-08": [
+      "Mab'as"
+    ],
+    "2024-02-11": [
+      "22 Bahman"
+    ],
+    "2024-02-25": [
+      "Veladat-e Hazrat Ghaem"
+    ],
+    "2024-03-19": [
+      "Melli Shodan-e Naft"
+    ],
+    "2024-03-20": [
+      "Nowruz"
+    ],
+    "2024-03-21": [
+      "Nowruz"
+    ],
+    "2024-03-22": [
+      "Nowruz"
+    ],
+    "2024-03-23": [
+      "Nowruz"
+    ],
+    "2024-03-31": [
+      "Jomhoori Eslami"
+    ],
+    "2024-04-01": [
+      "Shahadat-e Imam Ali",
+      "Sizdah Bedar"
+    ],
+    "2024-04-10": [
+      "Eyd-e Fetr"
+    ],
+    "2024-04-11": [
+      "Ta'til-e Eyd-e Fetr"
+    ],
+    "2024-05-04": [
+      "Shahadat-e Imam Jafar Sadegh"
+    ],
+    "2024-06-03": [
+      "Rehlat-e Imam Khomeini"
+    ],
+    "2024-06-04": [
+      "15 Khordad"
+    ],
+    "2024-06-17": [
+      "Eyd-e Qorban"
+    ],
+    "2024-06-25": [
+      "Eyd-e Ghadir"
+    ],
+    "2024-07-15": [
+      "Tasu'a"
+    ],
+    "2024-07-16": [
+      "Ashura"
+    ],
+    "2024-08-25": [
+      "Arba'in"
+    ],
+    "2024-09-02": [
+      "Rehlat-e Payambar va Shahadat-e Imam Hasan"
+    ],
+    "2024-09-04": [
+      "Shahadat-e Imam Reza"
+    ],
+    "2024-09-12": [
+      "Shahadat-e Imam Hasan Askari"
+    ],
+    "2024-09-21": [
+      "Veladat-e Payambar va Imam Jafar Sadegh"
+    ],
+    "2024-12-05": [
+      "Shahadat-e Hazrat Fatemeh"
+    ],
+    "2025-01-14": [
+      "Veladat-e Imam Ali"
+    ],
+    "2025-01-28": [
+      "Mab'as"
+    ],
+    "2025-02-10": [
+      "22 Bahman"
+    ],
+    "2025-02-14": [
+      "Veladat-e Hazrat Ghaem"
+    ],
+    "2025-03-19": [
+      "Melli Shodan-e Naft"
+    ],
+    "2025-03-21": [
+      "Nowruz"
+    ],
+    "2025-03-22": [
+      "Shahadat-e Imam Ali",
+      "Nowruz"
+    ],
+    "2025-03-23": [
+      "Nowruz"
+    ],
+    "2025-03-24": [
+      "Nowruz"
+    ],
+    "2025-03-31": [
+      "Eyd-e Fetr"
+    ],
+    "2025-04-01": [
+      "Ta'til-e Eyd-e Fetr",
+      "Jomhoori Eslami"
+    ],
+    "2025-04-02": [
+      "Sizdah Bedar"
+    ],
+    "2025-04-24": [
+      "Shahadat-e Imam Jafar Sadegh"
+    ],
+    "2025-06-04": [
+      "Rehlat-e Imam Khomeini"
+    ],
+    "2025-06-05": [
+      "15 Khordad"
+    ],
+    "2025-06-06": [
+      "Eyd-e Qorban"
+    ],
+    "2025-06-14": [
+      "Eyd-e Ghadir"
+    ],
+    "2025-07-05": [
+      "Tasu'a"
+    ],
+    "2025-07-06": [
+      "Ashura"
+    ],
+    "2025-08-14": [
+      "Arba'in"
+    ],
+    "2025-08-22": [
+      "Rehlat-e Payambar va Shahadat-e Imam Hasan"
+    ],
+    "2025-08-24": [
+      "Shahadat-e Imam Reza"
+    ],
+    "2025-09-01": [
+      "Shahadat-e Imam Hasan Askari"
+    ],
+    "2025-09-10": [
+      "Veladat-e Payambar va Imam Jafar Sadegh"
+    ],
+    "2025-11-24": [
+      "Shahadat-e Hazrat Fatemeh"
+    ],
+    "2026-01-03": [
+      "Veladat-e Imam Ali"
+    ],
+    "2026-01-17": [
+      "Mab'as"
+    ],
+    "2026-02-04": [
+      "Veladat-e Hazrat Ghaem"
+    ],
+    "2026-02-11": [
+      "22 Bahman"
+    ],
+    "2026-03-01": [
+      "Public Mourning"
+    ],
+    "2026-03-02": [
+      "Public Mourning"
+    ],
+    "2026-03-03": [
+      "Public Mourning"
+    ],
+    "2026-03-04": [
+      "Public Mourning"
+    ],
+    "2026-03-05": [
+      "Public Mourning"
+    ],
+    "2026-03-06": [
+      "Public Mourning"
+    ],
+    "2026-03-07": [
+      "Public Mourning"
+    ],
+    "2026-03-11": [
+      "Shahadat-e Imam Ali"
+    ],
+    "2026-03-20": [
+      "Melli Shodan-e Naft"
+    ],
+    "2026-03-21": [
+      "Eyd-e Fetr",
+      "Nowruz"
+    ],
+    "2026-03-22": [
+      "Ta'til-e Eyd-e Fetr",
+      "Nowruz"
+    ],
+    "2026-03-23": [
+      "Nowruz"
+    ],
+    "2026-03-24": [
+      "Nowruz"
+    ],
+    "2026-04-01": [
+      "Jomhoori Eslami"
+    ],
+    "2026-04-02": [
+      "Sizdah Bedar"
+    ],
+    "2026-04-14": [
+      "Shahadat-e Imam Jafar Sadegh"
+    ],
+    "2026-05-27": [
+      "Eyd-e Qorban"
+    ],
+    "2026-06-04": [
+      "Eyd-e Ghadir",
+      "Rehlat-e Imam Khomeini"
+    ],
+    "2026-06-05": [
+      "15 Khordad"
+    ],
+    "2026-06-24": [
+      "Tasu'a"
+    ],
+    "2026-06-25": [
+      "Ashura"
+    ],
+    "2026-08-04": [
+      "Arba'in"
+    ],
+    "2026-08-12": [
+      "Rehlat-e Payambar va Shahadat-e Imam Hasan"
+    ],
+    "2026-08-14": [
+      "Shahadat-e Imam Reza"
+    ],
+    "2026-08-21": [
+      "Shahadat-e Imam Hasan Askari"
+    ],
+    "2026-08-30": [
+      "Veladat-e Payambar va Imam Jafar Sadegh"
+    ],
+    "2026-11-13": [
+      "Shahadat-e Hazrat Fatemeh"
+    ],
+    "2026-12-22": [
+      "Veladat-e Imam Ali"
+    ],
+    "2027-01-05": [
+      "Mab'as"
+    ],
+    "2027-01-23": [
+      "Veladat-e Hazrat Ghaem"
+    ],
+    "2027-02-11": [
+      "22 Bahman"
+    ],
+    "2027-02-28": [
+      "Shahadat-e Imam Ali"
+    ],
+    "2027-03-10": [
+      "Eyd-e Fetr"
+    ],
+    "2027-03-11": [
+      "Ta'til-e Eyd-e Fetr"
+    ],
+    "2027-03-20": [
+      "Melli Shodan-e Naft"
+    ],
+    "2027-03-21": [
+      "Nowruz"
+    ],
+    "2027-03-22": [
+      "Nowruz"
+    ],
+    "2027-03-23": [
+      "Nowruz"
+    ],
+    "2027-03-24": [
+      "Nowruz"
+    ],
+    "2027-04-01": [
+      "Jomhoori Eslami"
+    ],
+    "2027-04-02": [
+      "Sizdah Bedar"
+    ],
+    "2027-04-03": [
+      "Shahadat-e Imam Jafar Sadegh"
+    ],
+    "2027-05-17": [
+      "Eyd-e Qorban"
+    ],
+    "2027-05-25": [
+      "Eyd-e Ghadir"
+    ],
+    "2027-06-04": [
+      "Rehlat-e Imam Khomeini"
+    ],
+    "2027-06-05": [
+      "15 Khordad"
+    ],
+    "2027-06-14": [
+      "Tasu'a"
+    ],
+    "2027-06-15": [
+      "Ashura"
+    ],
+    "2027-07-25": [
+      "Arba'in"
+    ],
+    "2027-08-02": [
+      "Rehlat-e Payambar va Shahadat-e Imam Hasan"
+    ],
+    "2027-08-04": [
+      "Shahadat-e Imam Reza"
+    ],
+    "2027-08-11": [
+      "Shahadat-e Imam Hasan Askari"
+    ],
+    "2027-08-20": [
+      "Veladat-e Payambar va Imam Jafar Sadegh"
+    ],
+    "2027-11-02": [
+      "Shahadat-e Hazrat Fatemeh"
+    ],
+    "2027-12-12": [
+      "Veladat-e Imam Ali"
+    ],
+    "2027-12-26": [
+      "Mab'as"
+    ],
+    "2028-01-12": [
+      "Veladat-e Hazrat Ghaem"
+    ],
+    "2028-02-11": [
+      "22 Bahman"
+    ],
+    "2028-02-17": [
+      "Shahadat-e Imam Ali"
+    ],
+    "2028-02-27": [
+      "Eyd-e Fetr"
+    ],
+    "2028-02-28": [
+      "Ta'til-e Eyd-e Fetr"
+    ],
+    "2028-03-19": [
+      "Melli Shodan-e Naft"
+    ]
+  }
+}

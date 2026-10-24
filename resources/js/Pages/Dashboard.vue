@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import {
     Play,
@@ -18,33 +18,59 @@ import {
     Sparkles,
 } from 'lucide-vue-next';
 import ProjectSelect from '@/Components/ProjectSelect.vue';
+import CalendarDateInput from '@/Components/CalendarDateInput.vue';
+import {
+    DEFAULT_SETTINGS,
+    WEEKDAYS_SHORT,
+    dateInTimeZone,
+    formatDate,
+    formatDateRange,
+    formatTimeInZone,
+    getDateParts,
+    todayISO,
+    zonedDateTimeToISO,
+} from '@/lib/calendar.js';
 
-const pad = (n) => String(n).padStart(2, '0');
+const page = usePage();
 
-const toDateInput = (d) => {
-    if (!d) return '';
-    const dt = d instanceof Date ? d : new Date(d);
-    if (Number.isNaN(dt.getTime())) return '';
-    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-};
+const settings = computed(() => {
+    const raw = page.props.settings || {};
+    const weekStart = Number(raw.week_start);
 
-const toTimeInput = (d) => {
-    if (!d) return '';
-    const dt = d instanceof Date ? d : new Date(d);
-    if (Number.isNaN(dt.getTime())) return '';
-    return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-};
+    return {
+        ...DEFAULT_SETTINGS,
+        ...raw,
+        week_start: Number.isInteger(weekStart) ? weekStart : DEFAULT_SETTINGS.week_start,
+        weekend_days: Array.isArray(raw.weekend_days)
+            ? raw.weekend_days.map(Number).filter(Number.isInteger)
+            : [...DEFAULT_SETTINGS.weekend_days],
+        show_holidays:
+            typeof raw.show_holidays === 'boolean' ? raw.show_holidays : DEFAULT_SETTINGS.show_holidays,
+    };
+});
+
+const weekStart = computed(() => {
+    const value = Number(settings.value.week_start);
+    if (!Number.isInteger(value)) return DEFAULT_SETTINGS.week_start;
+    return ((value % 7) + 7) % 7;
+});
+
+const weekSpanLabel = computed(
+    () => `${WEEKDAYS_SHORT[weekStart.value]}–${WEEKDAYS_SHORT[(weekStart.value + 6) % 7]}`
+);
+
+const toDateInput = (d) => (d ? dateInTimeZone(d) : '');
+
+const toTimeInput = (d) => (d ? formatTimeInZone(d) : '');
 
 const combineDateTime = (date, time) => {
     if (!date) return null;
     const t = time && time.length >= 4 ? time : '00:00';
-    const dt = new Date(`${date}T${t}:00`);
-    if (Number.isNaN(dt.getTime())) return null;
-    return dt.toISOString();
+    return zonedDateTimeToISO(date, t) || null;
 };
 
-const nowDateInput = () => toDateInput(new Date());
-const nowTimeInput = () => toTimeInput(new Date());
+const nowDateInput = () => todayISO();
+const nowTimeInput = () => formatTimeInZone(new Date());
 
 const props = defineProps({
     groupedDays: Array,
@@ -86,7 +112,7 @@ const formatHM = (seconds) => {
 
 const formatTime = (dateStr) => {
     if (!dateStr) return '--:--';
-    return new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return formatTimeInZone(dateStr) || '--:--';
 };
 
 const startTimerInterval = () => {
@@ -465,7 +491,7 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                                 <CalendarDays class="h-5 w-5" />
                             </div>
                             <div>
-                                <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">This week (Sat–Fri)</p>
+                                <p class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">This week ({{ weekSpanLabel }})</p>
                                 <p class="font-mono text-xl font-semibold tabular-nums text-slate-900 dark:text-white">
                                     {{ weekDisplay }}
                                 </p>
@@ -638,11 +664,14 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                                         </button>
                                     </div>
                                     <div class="flex gap-2">
-                                        <input
-                                            v-model="manualStartDate"
-                                            type="date"
-                                            class="dt-input flex-1"
-                                        />
+                                        <div class="min-w-0 flex-1">
+                                            <CalendarDateInput
+                                                v-model="manualStartDate"
+                                                :calendar="settings.calendar"
+                                                :week-start="settings.week_start"
+                                                class="dt-input w-full"
+                                            />
+                                        </div>
                                         <input
                                             v-model="manualStartTime"
                                             type="time"
@@ -662,11 +691,14 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                                         </button>
                                     </div>
                                     <div class="flex gap-2">
-                                        <input
-                                            v-model="manualEndDate"
-                                            type="date"
-                                            class="dt-input flex-1"
-                                        />
+                                        <div class="min-w-0 flex-1">
+                                            <CalendarDateInput
+                                                v-model="manualEndDate"
+                                                :calendar="settings.calendar"
+                                                :week-start="settings.week_start"
+                                                class="dt-input w-full"
+                                            />
+                                        </div>
                                         <input
                                             v-model="manualEndTime"
                                             type="time"
@@ -775,11 +807,14 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                                     <div>
                                         <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Start</label>
                                         <div class="flex gap-2">
-                                            <input
-                                                v-model="editStartDate"
-                                                type="date"
-                                                class="dt-input flex-1"
-                                            />
+                                            <div class="min-w-0 flex-1">
+                                                <CalendarDateInput
+                                                    v-model="editStartDate"
+                                                    :calendar="settings.calendar"
+                                                    :week-start="settings.week_start"
+                                                    class="dt-input w-full"
+                                                />
+                                            </div>
                                             <input
                                                 v-model="editStartTime"
                                                 type="time"
@@ -790,11 +825,14 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                                     <div>
                                         <label class="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">End</label>
                                         <div class="flex gap-2">
-                                            <input
-                                                v-model="editEndDate"
-                                                type="date"
-                                                class="dt-input flex-1"
-                                            />
+                                            <div class="min-w-0 flex-1">
+                                                <CalendarDateInput
+                                                    v-model="editEndDate"
+                                                    :calendar="settings.calendar"
+                                                    :week-start="settings.week_start"
+                                                    class="dt-input w-full"
+                                                />
+                                            </div>
                                             <input
                                                 v-model="editEndTime"
                                                 type="time"
@@ -871,7 +909,7 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                         <div v-if="day.show_week_header" class="flex items-center gap-3 pt-2">
                             <div class="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-800"></div>
                             <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                                <span>{{ day.week_start }} — {{ day.week_end }}</span>
+                                <span>{{ formatDateRange(day.week_start, day.week_end, { calendar: settings.calendar, style: 'short' }) }}</span>
                                 <span v-if="day.week_total_seconds !== null" class="font-mono normal-case tracking-normal text-slate-700 dark:text-slate-200">
                                     · {{ formatHM(day.week_total_seconds) }}
                                 </span>
@@ -888,17 +926,17 @@ const selectedTimerProject = computed(() => projectById.value.get(timerForm.proj
                                         ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300'
                                         : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'"
                                 >
-                                    <span class="text-[10px] uppercase opacity-60">{{ new Date(day.date).toLocaleDateString('en-US', { month: 'short' }) }}</span>
-                                    <span class="text-base">{{ new Date(day.date).getDate() }}</span>
+                                    <span class="text-[10px] uppercase opacity-60">{{ getDateParts(day.date, settings.calendar)?.monthShort }}</span>
+                                    <span class="text-base">{{ getDateParts(day.date, settings.calendar)?.day }}</span>
                                 </div>
                                 <div>
                                     <h3 class="text-sm font-semibold text-slate-900 dark:text-white">
                                         <span v-if="day.is_today">Today</span>
                                         <span v-else-if="day.is_yesterday">Yesterday</span>
-                                        <span v-else>{{ new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' }) }}</span>
+                                        <span v-else>{{ getDateParts(day.date, settings.calendar)?.weekdayLong }}</span>
                                     </h3>
                                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                                        {{ new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
+                                        {{ formatDate(day.date, { calendar: settings.calendar, style: 'long', weekday: false }) }}
                                     </p>
                                 </div>
                             </div>

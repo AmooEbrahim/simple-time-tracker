@@ -35,18 +35,7 @@ class ReportController extends Controller
         $projectId = $request->get('project_id');
         $tz = 'Asia/Tehran';
 
-        $weekStart = $this->timeTrackingService->getWeekStart(Carbon::today($tz));
-
-        [$start, $end] = match ($range) {
-            'today' => [now($tz), now($tz)],
-            'week' => [$weekStart, $weekStart->copy()->addDays(6)],
-            'month' => [now($tz)->startOfMonth(), now($tz)->endOfMonth()],
-            'year' => [now($tz)->startOfYear(), now($tz)->endOfYear()],
-            'custom' => [
-                $request->has('start') ? Carbon::parse($request->start, $tz) : now($tz)->subDays(30),
-                $request->has('end') ? Carbon::parse($request->end, $tz) : now($tz),
-            ],
-        };
+        [$start, $end] = $this->resolveRange($request, $range, $tz);
 
         $projectIds = null;
         if ($projectId) {
@@ -82,11 +71,117 @@ class ReportController extends Controller
         ]);
     }
 
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolveRange(Request $request, string $range, string $tz): array
+    {
+        $explicitStart = $this->parseIsoDate($request->query('start'), $tz);
+        $explicitEnd = $this->parseIsoDate($request->query('end'), $tz);
+
+        if ($range !== 'custom' && $explicitStart && $explicitEnd) {
+            return [$explicitStart, $explicitEnd];
+        }
+
+        $calendar = $request->user()?->calendarSettings()['calendar'] ?? 'jalali';
+        $weekStart = $this->timeTrackingService->getWeekStart(Carbon::today($tz));
+
+        return match ($range) {
+            'today' => [now($tz), now($tz)],
+            'week' => [$weekStart, $weekStart->copy()->addDays(6)],
+            'month' => $this->calendarRange($calendar, false, $tz),
+            'year' => $this->calendarRange($calendar, true, $tz),
+            'custom' => [
+                $explicitStart ?? now($tz)->copy()->subDays(30),
+                $explicitEnd ?? now($tz),
+            ],
+        };
+    }
+
+    /**
+     * Resolve month or year boundaries in the user's display calendar.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function calendarRange(string $calendar, bool $fullYear, string $tz): array
+    {
+        $calendarType = match ($calendar) {
+            'jalali' => 'persian',
+            'hijri' => 'islamic-umalqura',
+            default => null,
+        };
+
+        if ($calendarType === null || ! class_exists(\IntlCalendar::class)) {
+            return $this->gregorianRange($fullYear, $tz);
+        }
+
+        try {
+            $intl = \IntlCalendar::createInstance(
+                new \DateTimeZone($tz),
+                "en_US@calendar={$calendarType}"
+            );
+
+            if (! $intl) {
+                return $this->gregorianRange($fullYear, $tz);
+            }
+
+            $intl->setTime((float) now($tz)->getTimestampMs());
+
+            $year = $intl->get(\IntlCalendar::FIELD_YEAR);
+            $startMonth = $fullYear ? 0 : $intl->get(\IntlCalendar::FIELD_MONTH);
+            $endMonth = $fullYear ? 11 : $startMonth;
+
+            $intl->set($year, $startMonth, 1, 0, 0, 0);
+            $intl->set(\IntlCalendar::FIELD_MILLISECOND, 0);
+            $start = Carbon::createFromTimestampMs((int) $intl->getTime(), $tz);
+
+            $intl->set($year, $endMonth, 1, 0, 0, 0);
+            $lastDay = $intl->getActualMaximum(\IntlCalendar::FIELD_DAY_OF_MONTH);
+            $intl->set($year, $endMonth, $lastDay, 23, 59, 59);
+            $intl->set(\IntlCalendar::FIELD_MILLISECOND, 0);
+            $end = Carbon::createFromTimestampMs((int) $intl->getTime(), $tz);
+
+            return [$start, $end];
+        } catch (\Throwable) {
+            return $this->gregorianRange($fullYear, $tz);
+        }
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function gregorianRange(bool $fullYear, string $tz): array
+    {
+        return $fullYear
+            ? [now($tz)->startOfYear(), now($tz)->endOfYear()]
+            : [now($tz)->startOfMonth(), now($tz)->endOfMonth()];
+    }
+
+    private function parseIsoDate(mixed $value, string $tz): ?Carbon
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        $year = (int) substr($value, 0, 4);
+        if ($year < 1900 || $year > 2100) {
+            return null;
+        }
+
+        try {
+            $date = Carbon::createFromFormat('!Y-m-d', $value, $tz);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $date instanceof Carbon && $date->format('Y-m-d') === $value ? $date : null;
+    }
+
     public function export(Request $request): StreamedResponse
     {
         $tz = 'Asia/Tehran';
-        $start = $request->has('start') ? Carbon::parse($request->start, $tz) : now($tz)->startOfMonth();
-        $end = $request->has('end') ? Carbon::parse($request->end, $tz) : now($tz)->endOfMonth();
+        $start = $this->parseIsoDate($request->query('start'), $tz) ?? now($tz)->startOfMonth();
+        $end = $this->parseIsoDate($request->query('end'), $tz) ?? now($tz)->endOfMonth();
         $projectId = $request->get('project_id');
 
         $startUtc = $start->copy()->startOfDay()->timezone('UTC');
@@ -109,19 +204,22 @@ class ReportController extends Controller
 
         $filename = "time-report-{$start->format('Y-m-d')}-to-{$end->format('Y-m-d')}.xlsx";
 
-        return response()->streamDownload(function () use ($entries) {
+        return response()->streamDownload(function () use ($entries, $tz) {
             $fh = fopen('php://output', 'w');
 
             fputcsv($fh, ['Description', 'Project', 'Project ID', 'Date', 'Start Time', 'End Time', 'Duration (minutes)', 'Tags']);
 
             foreach ($entries as $entry) {
+                $startedAt = $entry->started_at->copy()->timezone($tz);
+                $endedAt = $entry->ended_at?->copy()->timezone($tz);
+
                 fputcsv($fh, [
                     $entry->description ?? '',
                     $entry->project?->name ?? 'No Project',
                     $entry->project_id ?? '',
-                    $entry->started_at->format('Y-m-d'),
-                    $entry->started_at->format('H:i'),
-                    $entry->ended_at?->format('H:i') ?? '',
+                    $startedAt->format('Y-m-d'),
+                    $startedAt->format('H:i'),
+                    $endedAt?->format('H:i') ?? '',
                     round($entry->duration_seconds / 60, 1),
                     $entry->tags->pluck('name')->implode(';'),
                 ]);

@@ -4,10 +4,13 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "holidays:generate": "node scripts/generate-holidays.mjs",
+        "test:js": "node --test tests/js/*.test.mjs"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",
+        "@jalali-js/holidays": "0.4.2",
         "@tailwindcss/forms": "^0.5.3",
         "@tailwindcss/vite": "^4.0.0",
         "@vitejs/plugin-vue": "^6.0.0",
@@ -21,6 +24,7 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "@internationalized/date": "^3.12.4",
         "chart.js": "^4.5.1",
         "lucide-vue-next": "^1.0.0",
         "vue-chartjs": "^5.3.3"

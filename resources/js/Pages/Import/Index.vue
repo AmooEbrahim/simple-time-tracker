@@ -84,7 +84,7 @@ const copyId = async (id) => {
 const columns = [
     { name: 'description', required: false, desc: 'What you worked on. Optional, max 500 characters.' },
     { name: 'project_id', required: true, desc: 'Numeric ID of your project. Required — find it on the Projects page or in the list below.' },
-    { name: 'date', required: true, desc: 'Day of the entry. Format YYYY-MM-DD, e.g. 2026-09-01.' },
+    { name: 'date', required: true, desc: 'Day of the entry. Always Gregorian YYYY-MM-DD (e.g. 2026-09-01), regardless of the display calendar in Settings.' },
     { name: 'start_time', required: true, desc: 'Start time, 24-hour HH:MM (e.g. 09:30). Seconds HH:MM:SS also accepted.' },
     { name: 'end_time', required: true, desc: 'End time, 24-hour HH:MM. Must be after start_time on the same date.' },
     { name: 'tags', required: false, desc: 'Optional. Multiple tags separated by ; — e.g. design;urgent. Tags are created automatically.' },
@@ -212,7 +212,7 @@ const columns = [
                             <Link :href="route('projects.index')" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">Projects page</Link>
                             (or the list below).
                         </li>
-                        <li>• Times are treated as your local time (Asia/Tehran). The import creates finished entries only — no running timers.</li>
+                        <li>• Dates in the CSV are always Gregorian; times are treated as Asia/Tehran time. The import creates finished entries only — no running timers.</li>
                         <li>• Tip: the <span class="font-medium">Export CSV</span> on the Reports page now includes <code class="rounded bg-slate-100 px-1 font-mono text-[11px] dark:bg-slate-800">project_id</code> and <code class="rounded bg-slate-100 px-1 font-mono text-[11px] dark:bg-slate-800">tags</code>, so an exported file can be re-imported directly.</li>
                     </ul>
 

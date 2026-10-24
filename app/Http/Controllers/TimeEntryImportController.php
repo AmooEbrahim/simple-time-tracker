@@ -235,6 +235,9 @@ class TimeEntryImportController extends Controller
             if ($date === false || $date->format('Y-m-d') !== $row['date']) {
                 return $prefix."date '{$row['date']}' must be YYYY-MM-DD (e.g. 2026-09-01).";
             }
+            if ($date->year < 1900 || $date->year > 2100) {
+                return $prefix."date '{$row['date']}' must be a Gregorian date (YYYY-MM-DD), regardless of the display calendar.";
+            }
         } catch (\Throwable) {
             return $prefix."date '{$row['date']}' must be YYYY-MM-DD (e.g. 2026-09-01).";
         }

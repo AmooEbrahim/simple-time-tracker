@@ -187,11 +187,12 @@ class TempoCommandTest extends TestCase
     {
         $user = $this->user();
         $project = Project::create(['user_id' => $user->id, 'name' => 'Alpha']);
+        $startedAt = now('Asia/Tehran')->setTime(10, 0);
         $entry = TimeEntry::create([
             'user_id' => $user->id,
             'project_id' => $project->id,
-            'started_at' => now()->subHours(2),
-            'ended_at' => now()->subHour(),
+            'started_at' => $startedAt->copy()->timezone('UTC'),
+            'ended_at' => $startedAt->copy()->addHour()->timezone('UTC'),
             'duration_seconds' => 3600,
         ]);
 

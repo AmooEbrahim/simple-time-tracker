@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout.vue";
-import { Head, router } from "@inertiajs/vue3";
+import { Head, router, usePage } from "@inertiajs/vue3";
 import { ref, computed, onMounted, watch } from "vue";
 import { Doughnut, Line } from "vue-chartjs";
 import {
@@ -25,6 +25,16 @@ import {
     TrendingUp,
 } from "lucide-vue-next";
 import ProjectSelect from "@/Components/ProjectSelect.vue";
+import CalendarDateInput from "@/Components/CalendarDateInput.vue";
+import {
+    DEFAULT_SETTINGS,
+    boundsForPreset,
+    formatDate,
+    formatDateRange,
+    todayISO,
+    weekdayOfISO,
+} from "@/lib/calendar.js";
+import { holidayNames, holidaySet } from "@/config/holidays/index.js";
 
 ChartJS.register(
     ArcElement,
@@ -54,6 +64,19 @@ const filterRange = ref(props.range);
 const filterStartDate = ref(props.startDate);
 const filterEndDate = ref(props.endDate);
 const filterProjectId = ref(props.selectedProjectId || "");
+
+const page = usePage();
+const settings = computed(() => ({
+    ...DEFAULT_SETTINGS,
+    ...(page.props.settings || {}),
+}));
+
+const rangeLabel = computed(() =>
+    formatDateRange(props.startDate, props.endDate, {
+        calendar: settings.value.calendar,
+        style: "short",
+    }),
+);
 
 const isDark = ref(false);
 const updateDarkMode = () => {
@@ -112,16 +135,27 @@ const applyFilters = () => {
 
 const setRange = (range) => {
     filterRange.value = range;
-    if (range !== "custom") {
-        router.get(
-            route("reports"),
-            {
-                range,
-                project_id: filterProjectId.value || null,
-            },
-            { preserveScroll: true },
-        );
-    }
+    if (range === "custom") return;
+
+    const { start, end } = boundsForPreset(range, {
+        calendar: settings.value.calendar,
+        weekStart: settings.value.week_start,
+        today: todayISO(),
+    });
+
+    filterStartDate.value = start;
+    filterEndDate.value = end;
+
+    router.get(
+        route("reports"),
+        {
+            range,
+            start,
+            end,
+            project_id: filterProjectId.value || null,
+        },
+        { preserveScroll: true },
+    );
 };
 
 watch(filterProjectId, () => {
@@ -199,6 +233,16 @@ const sortedByDate = computed(() =>
     [...props.groupedByDate].sort((a, b) => a.date.localeCompare(b.date)),
 );
 
+const weekendDays = computed(() =>
+    (settings.value.weekend_days || []).map(Number),
+);
+
+const holidayDates = computed(() =>
+    settings.value.show_holidays
+        ? holidaySet(settings.value.holiday_country)
+        : new Set(),
+);
+
 const movingAverageWindow = 7;
 
 const lineMovingAverage = computed(() => {
@@ -218,9 +262,11 @@ const lineMovingAverage = computed(() => {
 
 const lineData = computed(() => {
     const labels = sortedByDate.value.map((g) =>
-        new Date(g.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
+        formatDate(g.date, {
+            calendar: settings.value.calendar,
+            style: "short",
+            weekday: false,
+            year: false,
         }),
     );
     const data = sortedByDate.value.map(
@@ -301,12 +347,28 @@ const lineOptions = computed(() => ({
             backgroundColor: isDark.value ? "#0f172a" : "#ffffff",
             titleColor: isDark.value ? "#f1f5f9" : "#0f172a",
             bodyColor: isDark.value ? "#cbd5e1" : "#475569",
+            footerColor: isDark.value ? "#94a3b8" : "#64748b",
             borderColor: isDark.value ? "#1e293b" : "#e2e8f0",
             borderWidth: 1,
             padding: 12,
             callbacks: {
                 label: (ctx) =>
                     ` ${ctx.dataset.label}: ${formatHM(Math.round(ctx.parsed.y * 3600))}`,
+                footer: (items) => {
+                    if (!settings.value.show_holidays || !items?.length) {
+                        return "";
+                    }
+
+                    const iso = sortedByDate.value[items[0].dataIndex]?.date;
+                    if (!iso) return "";
+
+                    const names = holidayNames(
+                        settings.value.holiday_country,
+                        iso,
+                    );
+
+                    return names.length ? `Holiday: ${names.join(", ")}` : "";
+                },
             },
         },
     },
@@ -340,8 +402,6 @@ const lineOptions = computed(() => ({
     },
 }));
 
-import { specialOffDays } from "@/config/offDays.js";
-
 const weekendHighlightPlugin = {
     id: "weekendHighlight",
     beforeDraw(chart) {
@@ -357,13 +417,14 @@ const weekendHighlightPlugin = {
 
         for (let i = 0; i < entries.length; i++) {
             const dateStr = entries[i].date;
-            const day = new Date(dateStr).getDay(); // 0=Sun, 4=Thu, 5=Fri
-            const isSpecialOff = specialOffDays.includes(dateStr);
-            const isWeekend = day === 4 || day === 5;
+            const weekday = weekdayOfISO(dateStr);
+            const isHoliday = holidayDates.value.has(dateStr);
+            const isWeekend =
+                weekday !== null && weekendDays.value.includes(weekday);
 
-            if (!isSpecialOff && !isWeekend) continue;
+            if (!isHoliday && !isWeekend) continue;
 
-            ctx.fillStyle = isSpecialOff
+            ctx.fillStyle = isHoliday
                 ? isDark.value
                     ? "rgba(244,63,94,0.22)"
                     : "rgba(244,63,94,0.16)"
@@ -462,16 +523,22 @@ const ranges = [
                             v-if="filterRange === 'custom'"
                             class="flex items-center gap-2"
                         >
-                            <input
+                            <CalendarDateInput
                                 v-model="filterStartDate"
-                                type="date"
-                                class="rounded-lg border-slate-200 bg-slate-50 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                :calendar="settings.calendar"
+                                :week-start="settings.week_start"
+                                :max="filterEndDate"
+                                aria-label="Report start date"
+                                class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                             />
                             <span class="text-xs text-slate-400">→</span>
-                            <input
+                            <CalendarDateInput
                                 v-model="filterEndDate"
-                                type="date"
-                                class="rounded-lg border-slate-200 bg-slate-50 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                :calendar="settings.calendar"
+                                :week-start="settings.week_start"
+                                :min="filterStartDate"
+                                aria-label="Report end date"
+                                class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                             />
                             <button
                                 @click="applyFilters"
@@ -608,7 +675,31 @@ const ranges = [
                             class="text-xs text-slate-500 dark:text-slate-400"
                         >
                             <CalendarDays class="mr-1 inline h-3 w-3" />
-                            {{ startDate }} – {{ endDate }}
+                            {{ rangeLabel }}
+                        </span>
+                    </div>
+
+                    <div
+                        v-if="sortedByDate.length > 0"
+                        class="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
+                        <span
+                            v-if="weekendDays.length > 0"
+                            class="inline-flex items-center gap-1.5"
+                        >
+                            <span
+                                class="h-2 w-2 rounded-sm bg-indigo-500/30 dark:bg-indigo-400/40"
+                            ></span>
+                            Weekend
+                        </span>
+                        <span
+                            v-if="settings.show_holidays"
+                            class="inline-flex items-center gap-1.5"
+                        >
+                            <span
+                                class="h-2 w-2 rounded-sm bg-rose-500/30 dark:bg-rose-400/40"
+                            ></span>
+                            Holiday
                         </span>
                     </div>
 

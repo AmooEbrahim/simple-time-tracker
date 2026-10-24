@@ -86,6 +86,22 @@ class TimeEntryImportTest extends TestCase
         $this->assertDatabaseCount('time_entries', 0);
     }
 
+    public function test_import_rejects_jalali_dates_instead_of_misreading_them(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $csv = "description,project_id,date,start_time,end_time,tags\n"
+            ."Jalali row,{$project->id},1405-08-02,09:00,10:00,\n";
+
+        $file = UploadedFile::fake()->createWithContent('entries.csv', $csv);
+
+        $response = $this->actingAs($user)->post(route('import.store'), ['file' => $file]);
+
+        $response->assertSessionHasErrors('file');
+        $this->assertDatabaseCount('time_entries', 0);
+    }
+
     public function test_import_requires_project_id_column(): void
     {
         $user = User::factory()->create();

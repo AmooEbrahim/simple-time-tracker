@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Clock3, FolderKanban, BarChart3, Upload, Sun, Moon, Laptop, Menu, X } from 'lucide-vue-next';
+import { Clock3, FolderKanban, BarChart3, Upload, Settings as SettingsIcon, Sun, Moon, Laptop, Menu, X } from 'lucide-vue-next';
 
 const page = usePage();
 
@@ -63,6 +63,7 @@ const navItems = [
     { name: 'Projects', route: 'projects.index', icon: FolderKanban },
     { name: 'Reports', route: 'reports', icon: BarChart3 },
     { name: 'Import', route: 'import', icon: Upload },
+    { name: 'Settings', route: 'settings.edit', icon: SettingsIcon },
 ];
 </script>
 
@@ -82,7 +83,7 @@ const navItems = [
                         </span>
                     </Link>
 
-                    <div class="hidden items-center gap-1 sm:flex">
+                    <div class="hidden items-center gap-1 lg:flex">
                         <Link
                             v-for="item in navItems"
                             :key="item.route"
@@ -127,6 +128,9 @@ const navItems = [
                             </template>
 
                             <template #content>
+                                <DropdownLink :href="route('settings.edit')">
+                                    Settings
+                                </DropdownLink>
                                 <DropdownLink :href="route('profile.edit')">
                                     Profile
                                 </DropdownLink>
@@ -139,7 +143,7 @@ const navItems = [
 
                     <button
                         @click="showingNavigationDropdown = !showingNavigationDropdown"
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 sm:hidden"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden"
                     >
                         <component :is="showingNavigationDropdown ? X : Menu" class="h-5 w-5" />
                     </button>
@@ -156,7 +160,7 @@ const navItems = [
             >
                 <div
                     v-if="showingNavigationDropdown"
-                    class="border-t border-slate-200 bg-white px-4 py-3 sm:hidden dark:border-slate-800 dark:bg-slate-950"
+                    class="border-t border-slate-200 bg-white px-4 py-3 lg:hidden dark:border-slate-800 dark:bg-slate-950"
                 >
                     <div class="space-y-1">
                         <Link

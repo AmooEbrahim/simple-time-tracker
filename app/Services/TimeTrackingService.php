@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Project;
 use App\Models\TimeEntry;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -129,8 +130,8 @@ class TimeTrackingService
                 'entries' => $dayEntries->sortByDesc('started_at')->values(),
                 'total_seconds' => $dayEntries->sum('duration_seconds'),
                 'show_week_header' => $showWeekHeader,
-                'week_start' => $weekStart->format('M j'),
-                'week_end' => $weekEnd->format('M j, Y'),
+                'week_start' => $weekStart->format('Y-m-d'),
+                'week_end' => $weekEnd->format('Y-m-d'),
                 'week_total_seconds' => $weekTotalSeconds,
             ];
 
@@ -142,10 +143,15 @@ class TimeTrackingService
 
     public function getWeekStart(Carbon $date): Carbon
     {
-        $dayOfWeek = $date->dayOfWeek;
-        $diff = $dayOfWeek >= Carbon::SATURDAY
-            ? $dayOfWeek - Carbon::SATURDAY
-            : $dayOfWeek + 7 - Carbon::SATURDAY;
+        $weekStart = auth()->user()?->week_start
+            ?? User::defaultCalendarSettings()['week_start'];
+
+        $weekStart = (int) $weekStart;
+        if ($weekStart < 0 || $weekStart > 6) {
+            $weekStart = User::defaultCalendarSettings()['week_start'];
+        }
+
+        $diff = ($date->dayOfWeek - $weekStart + 7) % 7;
 
         return $date->copy()->subDays($diff)->startOfDay();
     }
