@@ -199,6 +199,23 @@ const sortedByDate = computed(() =>
     [...props.groupedByDate].sort((a, b) => a.date.localeCompare(b.date)),
 );
 
+const movingAverageWindow = 7;
+
+const lineMovingAverage = computed(() => {
+    const hours = sortedByDate.value.map((g) => g.total_seconds / 3600);
+
+    return hours.map((_, index) => {
+        const window = hours.slice(
+            Math.max(0, index - movingAverageWindow + 1),
+            index + 1,
+        );
+        const average =
+            window.reduce((sum, value) => sum + value, 0) / window.length;
+
+        return +average.toFixed(2);
+    });
+});
+
 const lineData = computed(() => {
     const labels = sortedByDate.value.map((g) =>
         new Date(g.date).toLocaleDateString("en-US", {
@@ -236,9 +253,23 @@ const lineData = computed(() => {
                 borderWidth: 2.5,
                 pointBackgroundColor: "#6366f1",
                 pointBorderColor: isDark.value ? "#0f172a" : "#ffffff",
-                pointBorderWidth: 2,
-                pointRadius: 4,
-                pointHoverRadius: 6,
+                pointBorderWidth: 1,
+                pointRadius: 2,
+                pointHoverRadius: 4,
+            },
+            {
+                label: "7-day avg",
+                data: lineMovingAverage.value,
+                borderColor: "#f59e0b",
+                backgroundColor: "transparent",
+                fill: false,
+                tension: 0.4,
+                borderWidth: 2,
+                borderDash: [5, 4],
+                pointRadius: 0,
+                pointHoverRadius: 3,
+                pointBackgroundColor: "#f59e0b",
+                pointBorderWidth: 0,
             },
         ],
     };
@@ -247,8 +278,25 @@ const lineData = computed(() => {
 const lineOptions = computed(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+        mode: "index",
+        intersect: false,
+    },
     plugins: {
-        legend: { display: false },
+        legend: {
+            display: true,
+            position: "top",
+            align: "end",
+            labels: {
+                color: isDark.value ? "#94a3b8" : "#64748b",
+                usePointStyle: true,
+                pointStyle: "circle",
+                boxWidth: 6,
+                boxHeight: 6,
+                padding: 12,
+                font: { size: 11 },
+            },
+        },
         tooltip: {
             backgroundColor: isDark.value ? "#0f172a" : "#ffffff",
             titleColor: isDark.value ? "#f1f5f9" : "#0f172a",
@@ -257,7 +305,8 @@ const lineOptions = computed(() => ({
             borderWidth: 1,
             padding: 12,
             callbacks: {
-                label: (ctx) => ` ${formatHM(Math.round(ctx.parsed.y * 3600))}`,
+                label: (ctx) =>
+                    ` ${ctx.dataset.label}: ${formatHM(Math.round(ctx.parsed.y * 3600))}`,
             },
         },
     },
