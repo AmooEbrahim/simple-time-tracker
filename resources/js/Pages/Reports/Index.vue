@@ -23,6 +23,7 @@ import {
     Upload,
     Sparkles,
     TrendingUp,
+    HelpCircle,
 } from "lucide-vue-next";
 import ProjectSelect from "@/Components/ProjectSelect.vue";
 import CalendarDateInput from "@/Components/CalendarDateInput.vue";
@@ -117,6 +118,25 @@ const dayCount = computed(() => {
 const dailyAverage = computed(() =>
     formatHM(Math.round((props.totalSeconds || 0) / dayCount.value)),
 );
+
+// Average over the span from the first to the last day that has data.
+// groupedByDate is already gap-filled between those two days (sorted desc).
+const activeSpan = computed(() => {
+    const days = props.groupedByDate || [];
+    if (!days.length) return null;
+
+    const first = days[days.length - 1].date;
+    const last = days[0].date;
+
+    return {
+        days: days.length,
+        average: formatHM(Math.round((props.totalSeconds || 0) / days.length)),
+        label: formatDateRange(first, last, {
+            calendar: settings.value.calendar,
+            style: "short",
+        }),
+    };
+});
 
 const topProject = computed(() => props.groupedByProject[0] || null);
 
@@ -619,6 +639,41 @@ const ranges = [
                         >
                             {{ dailyAverage }}
                         </p>
+                        <div
+                            v-if="activeSpan"
+                            class="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800"
+                        >
+                            <div class="flex items-center gap-1.5">
+                                <p
+                                    class="font-mono text-base font-semibold tabular-nums text-slate-700 dark:text-slate-200"
+                                >
+                                    {{ activeSpan.average }}
+                                </p>
+                                <span
+                                    class="group relative inline-flex"
+                                    tabindex="0"
+                                >
+                                    <HelpCircle
+                                        class="h-3.5 w-3.5 cursor-help text-slate-400"
+                                    />
+                                    <span
+                                        class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600 shadow-lg group-hover:block group-focus:block dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                    >
+                                        Average from the first to the last
+                                        tracked day:
+                                        {{ activeSpan.label }} ({{
+                                            activeSpan.days
+                                        }}
+                                        days)
+                                    </span>
+                                </span>
+                            </div>
+                            <p
+                                class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400"
+                            >
+                                {{ activeSpan.label }}
+                            </p>
+                        </div>
                     </div>
 
                     <div
