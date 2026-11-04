@@ -32,6 +32,8 @@ import {
     boundsForPreset,
     formatDate,
     formatDateRange,
+    getDateParts,
+    startOfWeekISO,
     todayISO,
     weekdayOfISO,
 } from "@/lib/calendar.js";
@@ -281,7 +283,93 @@ const movingAverage = (windowSize) => {
 const lineMovingAverage = computed(() => movingAverage(7));
 const lineMovingAverage3 = computed(() => movingAverage(3));
 
+// --- Granularity: daily / weekly / monthly totals ---
+const granularity = ref("day");
+const granularities = [
+    { value: "day", label: "Daily" },
+    { value: "week", label: "Weekly" },
+    { value: "month", label: "Monthly" },
+];
+
+// Weekly/monthly buckets: sum of the days in each calendar week/month.
+// Weeks follow the week-start setting, months follow the display calendar.
+const chartBuckets = computed(() => {
+    if (granularity.value === "day") return [];
+
+    const map = new Map();
+    for (const day of sortedByDate.value) {
+        let key;
+        if (granularity.value === "week") {
+            key = startOfWeekISO(day.date, settings.value.week_start);
+        } else {
+            const parts = getDateParts(day.date, settings.value.calendar);
+            key = parts ? `${parts.year}-${parts.month}` : day.date;
+        }
+
+        if (!map.has(key)) {
+            map.set(key, {
+                key,
+                firstDate: day.date,
+                lastDate: day.date,
+                seconds: 0,
+            });
+        }
+        const bucket = map.get(key);
+        bucket.lastDate = day.date;
+        bucket.seconds += day.total_seconds;
+    }
+
+    return [...map.values()].map((b) => {
+        let label;
+        if (granularity.value === "week") {
+            label = formatDate(b.key, {
+                calendar: settings.value.calendar,
+                style: "short",
+                year: false,
+            });
+        } else {
+            const parts = getDateParts(b.firstDate, settings.value.calendar);
+            label = parts ? `${parts.monthLong} ${parts.year}` : b.firstDate;
+        }
+
+        return {
+            ...b,
+            label,
+            range: formatDateRange(b.firstDate, b.lastDate, {
+                calendar: settings.value.calendar,
+                style: "short",
+            }),
+        };
+    });
+});
+
 const lineData = computed(() => {
+    if (granularity.value !== "day") {
+        const unit = granularity.value === "week" ? "Week" : "Month";
+
+        return {
+            labels: chartBuckets.value.map((b) => b.label),
+            datasets: [
+                {
+                    label: `${unit} total (hours)`,
+                    data: chartBuckets.value.map(
+                        (b) => +(b.seconds / 3600).toFixed(2),
+                    ),
+                    borderColor: "#6366f1",
+                    backgroundColor: "rgba(99,102,241,0.15)",
+                    fill: true,
+                    tension: 0.25,
+                    borderWidth: 2.5,
+                    pointBackgroundColor: "#6366f1",
+                    pointBorderColor: isDark.value ? "#0f172a" : "#ffffff",
+                    pointBorderWidth: 1,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                },
+            ],
+        };
+    }
+
     const labels = sortedByDate.value.map((g) =>
         formatDate(g.date, {
             calendar: settings.value.calendar,
@@ -390,6 +478,10 @@ const lineOptions = computed(() => ({
                 label: (ctx) =>
                     ` ${ctx.dataset.label}: ${formatHM(Math.round(ctx.parsed.y * 3600))}`,
                 footer: (items) => {
+                    if (granularity.value !== "day" && items?.length) {
+                        return chartBuckets.value[items[0].dataIndex]?.range ?? "";
+                    }
+
                     if (!settings.value.show_holidays || !items?.length) {
                         return "";
                     }
@@ -440,6 +532,8 @@ const lineOptions = computed(() => ({
 const weekendHighlightPlugin = {
     id: "weekendHighlight",
     beforeDraw(chart) {
+        if (granularity.value !== "day") return;
+
         const {
             ctx,
             chartArea: { top, bottom, left, right },
@@ -741,16 +835,35 @@ const ranges = [
                         >
                             Over time
                         </h3>
-                        <span
-                            class="text-xs text-slate-500 dark:text-slate-400"
-                        >
-                            <CalendarDays class="mr-1 inline h-3 w-3" />
-                            {{ rangeLabel }}
-                        </span>
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800"
+                            >
+                                <button
+                                    v-for="g in granularities"
+                                    :key="g.value"
+                                    @click="granularity = g.value"
+                                    class="rounded-md px-2.5 py-1 text-[11px] font-medium transition"
+                                    :class="
+                                        granularity === g.value
+                                            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                                            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                                    "
+                                >
+                                    {{ g.label }}
+                                </button>
+                            </div>
+                            <span
+                                class="text-xs text-slate-500 dark:text-slate-400"
+                            >
+                                <CalendarDays class="mr-1 inline h-3 w-3" />
+                                {{ rangeLabel }}
+                            </span>
+                        </div>
                     </div>
 
                     <div
-                        v-if="sortedByDate.length > 0"
+                        v-if="sortedByDate.length > 0 && granularity === 'day'"
                         class="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400"
                     >
                         <span
