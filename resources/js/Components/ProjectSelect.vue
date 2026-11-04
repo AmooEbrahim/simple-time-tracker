@@ -28,7 +28,7 @@ const searchQuery = ref('');
 const isOpen = ref(false);
 
 const selectedValue = computed({
-    get: () => props.modelValue ?? '',
+    get: () => (props.modelValue === null || props.modelValue === undefined || props.modelValue === '' ? '' : Number(props.modelValue)),
     set: (val) => emit('update:modelValue', val === '' ? null : Number(val)),
 });
 

@@ -243,14 +243,12 @@ const holidayDates = computed(() =>
         : new Set(),
 );
 
-const movingAverageWindow = 7;
-
-const lineMovingAverage = computed(() => {
+const movingAverage = (windowSize) => {
     const hours = sortedByDate.value.map((g) => g.total_seconds / 3600);
 
     return hours.map((_, index) => {
         const window = hours.slice(
-            Math.max(0, index - movingAverageWindow + 1),
+            Math.max(0, index - windowSize + 1),
             index + 1,
         );
         const average =
@@ -258,7 +256,10 @@ const lineMovingAverage = computed(() => {
 
         return +average.toFixed(2);
     });
-});
+};
+
+const lineMovingAverage = computed(() => movingAverage(7));
+const lineMovingAverage3 = computed(() => movingAverage(3));
 
 const lineData = computed(() => {
     const labels = sortedByDate.value.map((g) =>
@@ -302,6 +303,20 @@ const lineData = computed(() => {
                 pointBorderWidth: 1,
                 pointRadius: 2,
                 pointHoverRadius: 4,
+            },
+            {
+                label: "3-day avg",
+                data: lineMovingAverage3.value,
+                borderColor: "#10b981",
+                backgroundColor: "transparent",
+                fill: false,
+                tension: 0.4,
+                borderWidth: 2,
+                borderDash: [2, 3],
+                pointRadius: 0,
+                pointHoverRadius: 3,
+                pointBackgroundColor: "#10b981",
+                pointBorderWidth: 0,
             },
             {
                 label: "7-day avg",

@@ -61,7 +61,7 @@ class ReportController extends Controller
             'range' => $range,
             'startDate' => $start->format('Y-m-d'),
             'endDate' => $end->format('Y-m-d'),
-            'selectedProjectId' => $projectId,
+            'selectedProjectId' => $projectId !== null && $projectId !== '' ? (int) $projectId : null,
             'totalSeconds' => $totalSeconds,
             'groupedByProject' => $groupedByProject,
             'groupedByDate' => $groupedByDate,

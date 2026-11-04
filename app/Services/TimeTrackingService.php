@@ -334,7 +334,9 @@ class TimeTrackingService
                 continue;
             }
 
-            $parentKey = $project->parent_id ? "parent_{$project->parent_id}" : "root_{$project->id}";
+            // Entries on a parent project and on its children share one group.
+            $groupId = $project->parent_id ?? $project->id;
+            $parentKey = "parent_{$groupId}";
             $parent = $project->parent_id ? $project->parent : $project;
 
             if (! isset($parentMap[$parentKey])) {
